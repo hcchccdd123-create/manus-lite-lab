@@ -1,0 +1,44 @@
+from typing import Literal, Protocol
+
+from pydantic import BaseModel
+
+ProviderName = Literal['ollama', 'glm', 'codex']
+
+
+class ChatMessage(BaseModel):
+    role: Literal['system', 'user', 'assistant', 'tool']
+    content: str
+
+
+class ChatRequest(BaseModel):
+    provider: ProviderName
+    model: str
+    messages: list[ChatMessage]
+    temperature: float = 0.7
+    max_tokens: int | None = None
+    stream: bool = False
+    metadata: dict | None = None
+
+
+class ChatChunk(BaseModel):
+    delta: str
+    finish_reason: str | None = None
+
+
+class ChatResponse(BaseModel):
+    text: str
+    usage: dict | None = None
+    raw: dict | None = None
+
+
+class LLMProvider(Protocol):
+    name: ProviderName
+
+    async def chat(self, req: ChatRequest) -> ChatResponse:
+        raise NotImplementedError
+
+    async def stream_chat(self, req: ChatRequest):
+        raise NotImplementedError
+
+    async def health_check(self) -> bool:
+        raise NotImplementedError
