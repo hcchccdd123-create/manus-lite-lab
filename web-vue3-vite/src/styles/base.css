@@ -1,0 +1,461 @@
+:root {
+  --bg: #090b10;
+  --panel: #0f1117;
+  --panel-soft: #171a22;
+  --panel-elev: #1a1f2b;
+  --border: #262b36;
+  --border-soft: #202531;
+  --text: #e6e9ef;
+  --muted: #99a1b3;
+  --accent: #5b8cff;
+  --accent-2: #7aa2ff;
+  --ok: #35c575;
+  --danger: #f06a6a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'SF Pro Text', 'Segoe UI', 'Inter', sans-serif;
+  color: var(--text);
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 650px at -10% -20%, #1b2a52 0%, transparent 55%),
+    radial-gradient(1000px 600px at 105% 0%, #22263b 0%, transparent 48%),
+    var(--bg);
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #13161e 0%, #10131b 100%);
+  border-right: 1px solid var(--border);
+  padding: 12px 10px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-brand {
+  padding: 4px 4px 8px;
+}
+
+.sidebar-brand h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 640;
+  color: #ebeff8;
+}
+
+.sidebar-brand p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8f98ac;
+}
+
+.thread-header {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.thread-header h2 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.new-chat-btn {
+  border: 1px solid #2e3445;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #181d2a;
+  cursor: pointer;
+  font-size: 12px;
+  color: #d6deed;
+}
+
+.new-chat-btn:hover {
+  border-color: #4c5f89;
+  background: #1e2536;
+}
+
+.conversation-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 2px;
+  min-height: 0;
+}
+
+.conversation-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 8px 8px;
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: #e1e6f0;
+}
+
+.conversation-item:hover {
+  background: #1a202e;
+  border-color: #242d40;
+}
+
+.conversation-item.active {
+  background: #242a36;
+  border-color: #2f3a52;
+}
+
+.status-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #4a5268;
+  border-top-color: var(--accent-2);
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.time {
+  color: #8f98ac;
+  font-size: 12px;
+}
+
+.settings-btn {
+  margin-top: 6px;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid #232a39;
+  background: #151a25;
+  padding: 8px 10px;
+  color: #b8c1d3;
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  background: #1a2130;
+}
+
+.chat-panel {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-width: 0;
+  min-height: 0;
+  background: linear-gradient(180deg, #0a0d13 0%, #090b10 100%);
+  overflow: hidden;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.chat-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 640;
+}
+
+.streaming-label {
+  margin: 0;
+  color: #bfd2ff;
+  background: rgba(53, 112, 255, 0.18);
+  border: 1px solid rgba(107, 152, 255, 0.45);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.think-panel {
+  margin: 12px 18px 0;
+  border: 1px solid #3a3324;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1e1a12 0%, #17130e 100%);
+}
+
+.think-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #322c20;
+}
+
+.think-header .left,
+.think-header .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.think-header button {
+  border: 1px solid #55472b;
+  border-radius: 8px;
+  background: #272012;
+  color: #f2d9a3;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.think-content {
+  max-height: 140px;
+  overflow: auto;
+  padding: 10px;
+  color: #ead9b5;
+}
+
+.message-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 12px 18px;
+  border-radius: 12px;
+  background: #090c12;
+  border: 1px solid #171c25;
+  padding: 14px;
+  min-height: 0;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message-item {
+  max-width: min(920px, 100%);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #212736;
+  background: #131925;
+}
+
+.message-item.role-user {
+  margin-left: auto;
+  border-color: #2b3a63;
+  background: #152240;
+}
+
+.message-item.role-assistant {
+  margin-right: auto;
+}
+
+.message-item.draft {
+  border-style: dashed;
+}
+
+.message-role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+  color: #8f98ac;
+}
+
+.markdown {
+  font-size: 14px;
+  line-height: 1.58;
+  color: #dfe6f4;
+}
+
+.markdown pre {
+  margin: 10px 0;
+  border-radius: 10px;
+  border: 1px solid #2c3548;
+  background: #0d111a;
+  padding: 10px;
+  overflow: auto;
+}
+
+.markdown code {
+  font-family: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+}
+
+.markdown :first-child {
+  margin-top: 0;
+}
+
+.markdown :last-child {
+  margin-bottom: 0;
+}
+
+.composer {
+  border-top: 1px solid var(--border-soft);
+  background: #0b0f17;
+  padding: 14px 18px 18px;
+  display: block;
+}
+
+.composer-field {
+  display: block;
+  position: relative;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 76px;
+  max-height: 180px;
+  resize: none;
+  border: 1px solid #2a3244;
+  border-radius: 14px;
+  padding: 12px 56px 14px 14px;
+  background: #121722;
+  color: #e7ecf7;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.composer textarea::placeholder {
+  color: #818ca3;
+}
+
+.composer textarea:focus {
+  border-color: #4f78e4;
+  box-shadow: 0 0 0 3px rgba(79, 120, 228, 0.22);
+}
+
+.send-fab {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid #4267ca;
+  background: linear-gradient(180deg, #6d97ff 0%, #4d73de 100%);
+  color: #f5f8ff;
+  cursor: pointer;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.16s ease, box-shadow 0.2s ease;
+}
+
+.send-fab:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -16px rgba(92, 140, 255, 0.85);
+}
+
+.send-fab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.think-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.68);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.think-modal {
+  width: min(940px, 92vw);
+  height: min(82vh, 760px);
+  background: #0e121a;
+  border: 1px solid #2a3244;
+  border-radius: 14px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.think-modal-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #222a3a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.think-modal-header h3 {
+  margin: 0;
+}
+
+.think-modal-header button {
+  border: 1px solid #2f394d;
+  border-radius: 8px;
+  background: #161d2a;
+  color: #d2dbec;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.think-modal-content {
+  overflow: auto;
+  padding: 12px;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 42vh 1fr;
+    height: 100dvh;
+  }
+}
