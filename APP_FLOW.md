@@ -3,104 +3,107 @@
 ## 1. 页面与路由
 
 ### 页面清单
-1. 主页面（单页）
-   - 左侧：会话列表与新建入口
-   - 右侧：聊天区（消息流 + Think 面板 + 输入框）
+- 主页面（单页）
+  - 左侧：会话列表 + `+ New`
+  - 右侧：聊天区（消息流、Think 面板、输入框）
 
 ### 路由
 - `/`（当前唯一路由）
 
 ## 2. 核心流程
 
-### 流程 A：页面初始化
-触发：用户打开应用
+### Flow A: 进入应用（初始化）
+触发条件：打开页面或刷新页面。
 
 步骤：
-1. 前端从 IndexedDB 恢复会话、消息、think 状态
-2. 前端请求后端会话列表进行同步
-3. 用户可在左侧选择历史会话查看消息
+1. 从 IndexedDB 恢复 `conversations/messages/think_states`。
+2. 调用后端会话列表同步（失败不阻塞本地展示）。
+3. 进入草稿态：右侧空白，输入框居中，默认不自动选中历史会话。
 
 成功结果：
-- 左侧显示会话列表
-- 右侧显示当前选中会话内容（若有）
+- 用户可直接输入首问开始新会话。
+- 历史会话可在左侧手动切换查看。
 
 失败处理：
-- 后端同步失败仅 warning，不阻断本地已恢复内容
+- 后端同步失败：仅 warning，保留本地数据可用。
 
-### 流程 B：新建并开始对话
-触发：用户点击 New 或在可输入状态发送消息
+### Flow B: 点击 `+ New`
+触发条件：用户点击左侧 `+ New`。
 
-步骤（现行实现）：
-1. 创建会话（`POST /api/v1/conversations`）
-2. 设置 activeConversation
-3. 发送流式聊天（`POST /api/v1/chat/stream`）
+步骤：
+1. 切换到草稿态（`uiMode='draft'`）。
+2. 清空右侧会话上下文展示。
+3. 左侧不立即新增历史会话项。
 
 成功结果：
-- 左侧新增会话项
-- 右侧显示流式回复
+- 用户看到干净输入界面，不污染历史列表。
+
+### Flow C: 草稿态首发消息
+触发条件：草稿态输入并发送第一条消息。
+
+步骤：
+1. 前端先创建后端会话（拿到 `session_id`），并存入 `pendingConversations`。
+2. 建立 SSE（`POST /api/v1/chat/stream`）。
+3. 收到第一条流内容事件（`message.delta` 或 `message.thinking`）后，才将该会话从 pending 提升到左侧历史列表。
+4. 标题使用首问标准化文本前 20 字。
+
+成功结果：
+- 避免“空会话”提前出现在历史列表。
 
 失败处理：
-- 创建失败：提示错误，不进入流式
-- 流式失败：会话结束 loading 并标记错误
+- 若流式失败且从未收到首条流内容：该 pending 会话不显示在左栏。
 
-### 流程 C：流式消息处理
-触发：SSE 已建立
+### Flow D: 流式消息处理
+触发条件：SSE 已建立。
 
 事件序列：
-1. `message.start` -> 会话 isStreaming=true（左侧 loading）
-2. `message.delta` -> 追加 assistant 草稿文本；解析 think 片段
-3. `message.end` -> 固化 assistant 消息；isStreaming=false
-4. `error` -> 会话流状态 error，结束 loading
+1. `message.start`：会话置为 streaming，左栏显示 loading。
+2. `message.thinking`：追加 think 文本，ThinkPanel 实时滚动。
+3. `message.delta`：追加 assistant 正文草稿。
+4. `memory.updated`：更新摘要状态（可选事件）。
+5. `message.end`：固化 assistant 消息、结束 loading、Think 自动折叠。
+6. `error`：结束当前会话流状态并记录错误。
 
 成功结果：
-- 右侧消息区实时滚动
-- 左侧 loading 与会话状态一致
+- 消息区和 Think 区可持续增量更新。
+- 左栏 loading 与会话状态一致。
 
-失败处理：
-- 事件解析异常则丢弃单条事件，连接不中断
-
-### 流程 D：会话切换与并发隔离
-触发：用户点击左侧不同会话
+### Flow E: 会话切换与并发隔离
+触发条件：A 会话流式过程中切换到 B。
 
 步骤：
-1. activeConversationId 切换
-2. 若本地无消息则拉取后端历史
-3. 已在流式中的其它会话连接保持
+1. 切换 `activeConversationId`。
+2. A 的 SSE 连接保持，不中断。
+3. B 可独立发起新的 SSE。
+4. 回切 A 时继续看到 A 的增量输出。
 
 成功结果：
-- 切换后显示对应会话消息
-- 非当前会话继续后台流式
+- 多会话流式完全隔离，不串流。
 
-失败处理：
-- 拉历史失败仅提示，不影响其它会话
-
-### 流程 E：Think 展示
-触发：delta 或 end 文本含 `<think>...</think>`
+### Flow F: 删除会话
+触发条件：悬停会话项，点击标题区删除按钮。
 
 步骤：
-1. 前端解析 think 与 normal 文本
-2. think 持续写入 ThinkPanel（滚动）
-3. 结束后自动折叠，可点击放大弹窗
+1. 打开 Element Plus 确认弹窗。
+2. 确认后调用 `DELETE /api/v1/conversations/{id}`（软删）。
+3. 前端同步删除内存态与 IndexedDB 数据。
+4. 若删除当前会话，自动回草稿态。
 
 成功结果：
-- think 与正文分离显示
-- think 支持 Markdown
-
-失败处理：
-- 无 think 标签时仅展示正文
+- 左栏、右侧、IndexedDB 三处状态一致。
 
 ## 3. 决策点
-1. 是否存在 active 会话
-2. 是否需要创建新会话
-3. SSE 事件类型分支
-4. think 解析模式（normal/think）
-5. 本地消息是否命中缓存，决定是否请求后端
+- 当前是否为草稿态。
+- 是否已有 active 会话。
+- 流式首条内容是否到达（决定是否 reveal pending）。
+- SSE 事件类型分支（start/thinking/delta/end/error）。
+- 本地是否已有该会话历史消息缓存。
 
 ## 4. 异常分支
-- CORS/网络错误：fetch 失败，流程短路并提示
-- 后端 4xx/5xx：按接口错误展示
-- provider 不可用：`/health` 可见状态 false
-- SSE 中断：当前会话进入 done/error，不自动重连
+- CORS/网络失败：请求报错，保留当前 UI，不崩溃。
+- provider 不可用：`/health` 返回 provider false。
+- 会话不存在：聊天接口 404。
+- SSE 中断：当前会话置 error/done，不自动续传（用户可重发）。
 
 ---
 Last updated from codebase on 2026-03-05

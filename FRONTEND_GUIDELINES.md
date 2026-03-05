@@ -1,85 +1,86 @@
 # FRONTEND_GUIDELINES.md
 
 ## 1. 设计语言
-- 风格：暗色极简、对话优先
-- 参考：主流会话产品（左侧线程栏 + 右侧内容区）
-- 原则：减少噪声、突出消息内容与输入动作
+- 暗色极简、对话优先、弱装饰。
+- 参考主流会话产品信息密度，但避免照搬无关功能。
+- 优先保证可读性、状态可见性、滚动行为可控性。
 
-## 2. 视觉 Token
+## 2. 视觉 Token（当前实现）
 
-### 颜色（当前实现主色）
+### 颜色
 - `--bg: #090b10`
 - `--panel: #0f1117`
 - `--panel-soft: #171a22`
 - `--panel-elev: #1a1f2b`
 - `--border: #262b36`
+- `--border-soft: #202531`
 - `--text: #e6e9ef`
 - `--muted: #99a1b3`
 - `--accent: #5b8cff`
 - `--accent-2: #7aa2ff`
+- `--danger: #f06a6a`
 
 ### 字体
-- `'SF Pro Text', 'Segoe UI', 'Inter', sans-serif`
-- 代码字体：`'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace`
+- 正文：`'SF Pro Text', 'Segoe UI', 'Inter', sans-serif`
+- 等宽：`'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace`
 
-### 圆角
-- 小组件：8px~10px
-- 气泡/输入区：12px~14px
-- 容器：14px+
+### 圆角与间距
+- 圆角：8 / 10 / 12 / 14 px
+- 间距：4 / 8 / 10 / 12 / 14 / 18 px
 
-### 间距
-- 基础 spacing：4 / 8 / 10 / 12 / 14 / 18 px
-
-## 3. 布局规范
-1. 左栏固定宽度（当前 280px）
-2. 右侧主区自适应
-3. 仅允许以下区域滚动：
-   - 左侧会话列表 `.conversation-list`
-   - 右侧消息区 `.message-scroll`
-4. 页面 body 禁止滚动（`overflow: hidden`）
+## 3. 布局与滚动规范
+- 左栏固定宽度：`280px`。
+- 右侧主区自适应。
+- 允许滚动区域仅有：
+  - `.conversation-list`
+  - `.message-scroll`
+  - `.think-content`（Think 内容区内部）
+- 禁止 `body` 滚动（`overflow: hidden`）。
 
 ## 4. 组件规范
 
 ### Sidebar
-- 包含品牌区、Threads 标题、New 按钮、会话列表
-- 不展示无关模块（例如 Automations / Skills）
+- 展示品牌、Threads 标题、`+ New`、会话列表。
+- 不显示 Automations/Skills 等当前范围外模块。
 
 ### ConversationItem
-- 显示标题、时间、可选 loading 小圆点
-- active 与 hover 状态明确
+- 标题、更新时间、streaming spinner。
+- 删除按钮位于标题行，仅 hover/active 显示。
 
 ### ChatPanel
-- 顶部标题 + streaming 状态
-- 中部消息流
-- 可选 ThinkPanel
-- 底部 Composer
+- 顶部会话标题与 streaming 状态。
+- 草稿态：右侧空白 + 输入框垂直居中。
+- 会话态：ThinkPanel（可选）+ 消息区 + 底部输入框。
 
 ### Composer
-- 输入框内嵌发送按钮（右下角）
-- 发送按钮为圆形，中心上箭头图标
-- Enter 发送，Shift+Enter 换行
+- 输入框内右下角圆形发送按钮（上箭头图标）。
+- Enter 发送，Shift+Enter 换行。
 
 ### ThinkPanel / ThinkModal
-- Think 固定高度滚动区
-- 支持折叠/展开
-- 支持弹窗放大
+- Think 区固定高度、内部滚动。
+- 流式中展开；完成后自动折叠。
+- 支持弹窗放大查看 Markdown 内容。
 
-## 5. 交互规范
-1. 会话隔离：每个会话独立流式状态
-2. loading 绑定会话流状态，不全局共享
-3. 流式中切换会话不打断原会话
-4. Think 与正文分离渲染
-5. Markdown 渲染必须经过安全净化
+## 5. 关键交互规范
+- `+ New` 只进入草稿态，不立即创建历史会话项。
+- 首发后 pending 会话仅在收到第一条流内容时进入左栏。
+- 标题规则：首问 `trim + 压缩空白 + 前 20 字`。
+- 多会话并发流式隔离：切换会话不影响其他会话连接。
+- 删除会话使用 Element Plus 确认弹窗，样式必须覆盖为暗色体系。
 
-## 6. 响应式
-- 断点：980px
-- 小屏下改为上下分区（左栏在上，聊天区在下）
+## 6. Markdown 与安全
+- assistant 正文与 think 文本都走 Markdown 渲染。
+- 渲染前做 DOMPurify 净化，禁止脚本注入。
 
-## 7. 禁止项
-- 原生默认样式按钮直接上线
-- 随机色值、无 token 命名的硬编码
-- 全页面可滚动导致左右区域滚动冲突
-- 把 think 内容直接混入正文造成阅读干扰
+## 7. 响应式
+- 断点：`max-width: 980px`。
+- 小屏改为上下布局（上：左栏，下：聊天区）。
+
+## 8. 禁止项
+- 未样式化的原生按钮直接上线。
+- 与 token 无关的随机色值扩散。
+- 全页面滚动导致左栏/右栏双滚动冲突。
+- 将 think 文本直接混排进 assistant 正文。
 
 ---
 Last updated from codebase on 2026-03-05
