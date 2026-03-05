@@ -15,6 +15,8 @@ class ChatRequest(BaseModel):
     model: str
     messages: list[ChatMessage]
     temperature: float = 0.7
+    top_p: float | None = None
+    repeat_penalty: float | None = None
     max_tokens: int | None = None
     stream: bool = False
     enable_thinking: bool | None = None

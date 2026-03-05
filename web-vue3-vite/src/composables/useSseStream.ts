@@ -16,6 +16,10 @@ function boundaryLengthAt(buffer: string, index: number): number {
   return buffer.startsWith('\r\n\r\n', index) ? 4 : 2
 }
 
+function stripOptionalSseSpace(value: string): string {
+  return value.startsWith(' ') ? value.slice(1) : value
+}
+
 export async function consumeSseStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onEvent: (evt: ParsedEvent) => void
@@ -42,7 +46,7 @@ export async function consumeSseStream(
         if (line.startsWith('event:')) {
           eventName = line.slice(6).trim()
         } else if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).trim())
+          dataLines.push(stripOptionalSseSpace(line.slice(5)))
         }
       }
 
@@ -60,6 +64,22 @@ export interface ThinkSplitResult {
   tagBuffer: string
 }
 
+const OPEN_TAG = '<think>'
+const CLOSE_TAG = '</think>'
+
+function getTrailingTagPrefix(text: string, fullTag: string): string {
+  const maxPrefixLength = fullTag.length - 1
+  const maxCheckLength = Math.min(maxPrefixLength, text.length)
+
+  for (let len = maxCheckLength; len > 0; len -= 1) {
+    if (text.endsWith(fullTag.slice(0, len))) {
+      return fullTag.slice(0, len)
+    }
+  }
+
+  return ''
+}
+
 export function splitThinkDelta(
   chunk: string,
   mode: 'normal' | 'think',
@@ -70,43 +90,35 @@ export function splitThinkDelta(
   let currentMode = mode
   let normalText = ''
   let thinkText = ''
+  let tagBuffer = ''
 
   while (i < text.length) {
     if (currentMode === 'normal') {
-      const start = text.indexOf('<think>', i)
+      const start = text.indexOf(OPEN_TAG, i)
       if (start === -1) {
-        normalText += text.slice(i)
+        const tail = text.slice(i)
+        const carry = getTrailingTagPrefix(tail, OPEN_TAG)
+        normalText += carry ? tail.slice(0, -carry.length) : tail
+        tagBuffer = carry
         i = text.length
       } else {
         normalText += text.slice(i, start)
-        i = start + '<think>'.length
+        i = start + OPEN_TAG.length
         currentMode = 'think'
       }
     } else {
-      const end = text.indexOf('</think>', i)
+      const end = text.indexOf(CLOSE_TAG, i)
       if (end === -1) {
-        thinkText += text.slice(i)
+        const tail = text.slice(i)
+        const carry = getTrailingTagPrefix(tail, CLOSE_TAG)
+        thinkText += carry ? tail.slice(0, -carry.length) : tail
+        tagBuffer = carry
         i = text.length
       } else {
         thinkText += text.slice(i, end)
-        i = end + '</think>'.length
+        i = end + CLOSE_TAG.length
         currentMode = 'normal'
       }
-    }
-  }
-
-  let tagBuffer = ''
-  const suffixCandidates = ['<think>', '</think>', '<think', '</think']
-  for (const candidate of suffixCandidates) {
-    if (text.endsWith(candidate)) {
-      tagBuffer = candidate
-      if (candidate && normalText.endsWith(candidate)) {
-        normalText = normalText.slice(0, -candidate.length)
-      }
-      if (candidate && thinkText.endsWith(candidate)) {
-        thinkText = thinkText.slice(0, -candidate.length)
-      }
-      break
     }
   }
 

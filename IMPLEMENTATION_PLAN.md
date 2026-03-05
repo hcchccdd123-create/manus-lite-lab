@@ -35,10 +35,10 @@ DoD：
 
 ### Phase 3 - Think 与持久化（已完成）
 输入：SSE 多事件流。
-输出：ThinkPanel/Modal + IndexedDB 持久化。
+输出：ThinkPanel（缩略 + 居中放大）+ IndexedDB 持久化。
 DoD：
 - `message.thinking` 可实时展示
-- think 可折叠与放大
+- think 可缩略展示与放大查看
 - 刷新后会话/消息/think 可恢复
 
 ### Phase 4 - 草稿态与历史展示规则（已完成）
@@ -57,6 +57,8 @@ DoD：
 - 部署脚本可执行
 - systemd 服务可运行
 - 生产环境变量模板完整
+- Think 缩略浮层（`70x70`）与居中放大交互稳定（含 Genie 风格开合动画）
+- 全局业务滚动条样式统一且不污染第三方组件
 
 ## 3. 联调执行清单
 1. 启动后端：`cd llm-python && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
@@ -82,8 +84,12 @@ DoD：
 ### 手工冒烟
 - 草稿态居中输入
 - 并发会话不串流
-- Think 展示与折叠
+- Think 缩略展示与居中放大
 - 刷新恢复与删除回退
+- Think 缩略模块不遮挡输入框/发送按钮
+- 消息区底部留白在 100% / 125% / 150% 缩放下可读
+- 移动端输入框左侧 Think 入口可用
+- 滚动条 hover/active 反馈与跨浏览器一致性
 
 ## 5. 回归清单
 - 草稿态入口（刷新 + New）
@@ -91,6 +97,10 @@ DoD：
 - 首条流内容 reveal 规则
 - 删除弹窗视觉统一与行为正确
 - IndexedDB 数据一致性
+- 缩略 Think 定位：`top:-50px; left:30px`
+- 缩略 Think 外透明区不拦截 pointer 事件
+- `message-scroll` `padding-bottom: 80px` 生效
+- 业务滚动条蓝色细条 + hover 加亮；第三方组件不被污染
 
 ## 6. OpenCloudOS 部署步骤（后端）
 1. 上传代码到目标目录（示例：`/opt/manus-lite-chat/app`）

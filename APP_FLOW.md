@@ -5,7 +5,7 @@
 ### 页面清单
 - 主页面（单页）
   - 左侧：会话列表 + `+ New`
-  - 右侧：聊天区（消息流、Think 面板、输入框）
+  - 右侧：聊天区（消息流、Think 缩略/放大面板、输入框）
 
 ### 路由
 - `/`（当前唯一路由）
@@ -58,10 +58,10 @@
 
 事件序列：
 1. `message.start`：会话置为 streaming，左栏显示 loading。
-2. `message.thinking`：追加 think 文本，ThinkPanel 实时滚动。
+2. `message.thinking`：追加 think 文本，缩略 Think（70x70）实时更新并自动滚底。
 3. `message.delta`：追加 assistant 正文草稿。
 4. `memory.updated`：更新摘要状态（可选事件）。
-5. `message.end`：固化 assistant 消息、结束 loading、Think 自动折叠。
+5. `message.end`：固化 assistant 消息、结束 loading，Think 保留缩略可回看状态。
 6. `error`：结束当前会话流状态并记录错误。
 
 成功结果：
@@ -92,18 +92,40 @@
 成功结果：
 - 左栏、右侧、IndexedDB 三处状态一致。
 
+### Flow G: Think 缩略与放大
+触发条件：当前会话存在 think 内容。
+
+桌面端步骤：
+1. 在输入区容器左上方显示缩略 Think：`top:-50px; left:30px`。
+2. 缩略模块逻辑视图保持 `400x400`，通过等比缩放显示为 `70x70`。
+3. 点击缩略模块后，同一 Think 视图提升到 chat-panel 最高层级并上下左右居中（无遮罩层）。
+4. 展开/收缩动画参考 macOS Genie Effect（神奇灯）风格。
+5. 放大视图首次打开自动滚动到底部；thinking 进行中默认持续自动滚底。
+6. 用户手动滚动后暂停自动滚底，点击底部“回到底部”悬浮按钮恢复自动滚底。
+7. 关闭放大视图后回到缩略模块初始位置。
+
+移动端步骤（`<=980px`）：
+1. 隐藏缩略模块。
+2. 在输入框左侧显示 Think 放大入口按钮。
+3. 点击入口按钮打开/关闭 Think 放大视图。
+
+成功结果：
+- 保持 think 快速预览能力，同时不遮挡输入与消息阅读。
+
 ## 3. 决策点
 - 当前是否为草稿态。
 - 是否已有 active 会话。
 - 流式首条内容是否到达（决定是否 reveal pending）。
 - SSE 事件类型分支（start/thinking/delta/end/error）。
 - 本地是否已有该会话历史消息缓存。
+- 当前是否移动端（决定缩略模块或输入区入口按钮）。
 
 ## 4. 异常分支
 - CORS/网络失败：请求报错，保留当前 UI，不崩溃。
 - provider 不可用：`/health` 返回 provider false。
 - 会话不存在：聊天接口 404。
 - SSE 中断：当前会话置 error/done，不自动续传（用户可重发）。
+- 缩略层误拦截点击：视为 P1 回归，必须修复 pointer-events 命中区。
 
 ---
 Last updated from codebase on 2026-03-05

@@ -265,8 +265,8 @@ export const useChatStore = defineStore('chat', () => {
     const title = buildConversationTitleFromFirstPrompt(firstPrompt)
     const response = await createConversation({
       title,
-      provider: 'ollama',
-      model: 'qwen3.5:0.8b'
+      provider: 'glm',
+      model: 'glm-4.7'
     })
 
     const created = response.data
@@ -290,8 +290,34 @@ export const useChatStore = defineStore('chat', () => {
   async function loadMessages(conversationId: string): Promise<void> {
     ensureMessages(conversationId)
     const response = await getMessages(conversationId)
-    messagesByConversation.value[conversationId] = response.data || []
-    await saveMessages(messagesByConversation.value[conversationId])
+    const serverMessages = response.data || []
+    const localMessages = messagesByConversation.value[conversationId] || []
+
+    if (localMessages.length === 0) {
+      messagesByConversation.value[conversationId] = serverMessages
+      await saveMessages(serverMessages)
+      return
+    }
+
+    const mergedBySequence = new Map<number, Message>()
+    for (const item of serverMessages) {
+      mergedBySequence.set(item.sequence_no, item)
+    }
+    for (const item of localMessages) {
+      if (item.isStreamingDraft) continue
+      if (!mergedBySequence.has(item.sequence_no)) {
+        mergedBySequence.set(item.sequence_no, item)
+      }
+    }
+
+    const merged = Array.from(mergedBySequence.values()).sort((a, b) => a.sequence_no - b.sequence_no)
+    const localDraft = localMessages.find((item) => item.isStreamingDraft)
+    if (localDraft) {
+      merged.push(localDraft)
+    }
+
+    messagesByConversation.value[conversationId] = merged
+    await saveMessages(merged)
   }
 
   async function deleteConversationAction(conversationId: string): Promise<void> {

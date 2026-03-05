@@ -23,6 +23,7 @@ watch(
   () => activeConversationId.value,
   async (id) => {
     if (!id) return
+    if (chatStore.pendingConversations[id]) return
     const existing = chatStore.messagesByConversation[id]
     if (existing && existing.length > 0) return
     try {

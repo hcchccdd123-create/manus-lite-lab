@@ -11,6 +11,7 @@ from app.memory.policy import MemoryPolicy
 from app.memory.summarizer import Summarizer
 from app.providers.base import ChatMessage, ChatRequest
 from app.services.provider_router import ProviderRouter
+from app.services.thinking_loop_guard import ThinkingLoopGuard
 from app.utils.ids import new_request_id
 from app.utils.time import utcnow
 
@@ -65,9 +66,11 @@ class ChatService:
             model=model_name,
             messages=context_messages,
             temperature=temperature,
+            top_p=self.settings.generation_top_p,
+            repeat_penalty=self.settings.generation_repeat_penalty if provider_name == 'ollama' else None,
             max_tokens=max_tokens,
             stream=False,
-            enable_thinking=enable_thinking if provider_name == 'ollama' else False,
+            enable_thinking=enable_thinking if provider_name in {'ollama', 'glm'} else False,
         )
         resp = await self.provider_router.chat(req, conversation_id=session_id, request_id=request_id)
 
@@ -132,18 +135,28 @@ class ChatService:
             model=model_name,
             messages=context_messages,
             temperature=temperature,
+            top_p=self.settings.generation_top_p,
+            repeat_penalty=self.settings.generation_repeat_penalty if provider_name == 'ollama' else None,
             max_tokens=max_tokens,
             stream=True,
-            enable_thinking=enable_thinking if provider_name == 'ollama' else False,
+            enable_thinking=enable_thinking if provider_name in {'ollama', 'glm'} else False,
         )
 
         yield {'event': 'message.start', 'data': {'request_id': request_id}}
         chunks: list[str] = []
         thinking_chunks: list[str] = []
+        thinking_guard = ThinkingLoopGuard(
+            enabled=self.settings.enable_thinking_loop_guard and provider_name == 'ollama',
+            max_chars=self.settings.thinking_loop_max_chars,
+            repeat_window=self.settings.thinking_loop_repeat_window,
+            repeat_threshold=self.settings.thinking_loop_repeat_threshold,
+        )
         async for chunk in self.provider_router.stream_chat(req, conversation_id=session_id, request_id=request_id):
             if chunk.thinking:
-                thinking_chunks.append(chunk.thinking)
-                yield {'event': 'message.thinking', 'data': {'delta': chunk.thinking}}
+                filtered = thinking_guard.filter_delta(chunk.thinking)
+                if filtered:
+                    thinking_chunks.append(filtered)
+                    yield {'event': 'message.thinking', 'data': {'delta': filtered}}
             if chunk.delta:
                 chunks.append(chunk.delta)
                 yield {'event': 'message.delta', 'data': {'delta': chunk.delta}}
@@ -181,7 +194,12 @@ class ChatService:
 
         yield {
             'event': 'message.end',
-            'data': {'text': assistant_text, 'thinking': ''.join(thinking_chunks), 'request_id': request_id},
+            'data': {
+                'text': assistant_text,
+                'thinking': ''.join(thinking_chunks),
+                'request_id': request_id,
+                'thinking_guard_triggered': thinking_guard.triggered,
+            },
         }
 
     async def _build_context_messages(self, conv, current_user_message: str) -> list[ChatMessage]:

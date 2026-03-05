@@ -27,9 +27,12 @@ class CodexProvider:
             'model': req.model,
             'messages': [m.model_dump() for m in req.messages],
             'temperature': req.temperature,
+            'top_p': req.top_p,
             'max_tokens': req.max_tokens,
             'stream': False,
         }
+        if req.top_p is None:
+            payload.pop('top_p')
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.post(f'{self.base_url}/v1/chat/completions', headers=self._headers(), json=payload)
@@ -51,9 +54,12 @@ class CodexProvider:
             'model': req.model,
             'messages': [m.model_dump() for m in req.messages],
             'temperature': req.temperature,
+            'top_p': req.top_p,
             'max_tokens': req.max_tokens,
             'stream': True,
         }
+        if req.top_p is None:
+            payload.pop('top_p')
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 async with client.stream('POST', f'{self.base_url}/v1/chat/completions', headers=self._headers(), json=payload) as resp:

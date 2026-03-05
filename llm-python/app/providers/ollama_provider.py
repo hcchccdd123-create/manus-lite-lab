@@ -13,6 +13,15 @@ class OllamaProvider:
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout_seconds
 
+    @staticmethod
+    def _build_options(req: ChatRequest) -> dict:
+        options = {'temperature': req.temperature}
+        if req.top_p is not None:
+            options['top_p'] = req.top_p
+        if req.repeat_penalty is not None:
+            options['repeat_penalty'] = req.repeat_penalty
+        return options
+
     async def chat(self, req: ChatRequest) -> ChatResponse:
         enable_thinking = req.enable_thinking if req.enable_thinking is not None else True
         payload = {
@@ -20,7 +29,7 @@ class OllamaProvider:
             'messages': [m.model_dump() for m in req.messages],
             'stream': False,
             'think': enable_thinking,
-            'options': {'temperature': req.temperature},
+            'options': self._build_options(req),
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -47,7 +56,7 @@ class OllamaProvider:
             'messages': [m.model_dump() for m in req.messages],
             'stream': True,
             'think': enable_thinking,
-            'options': {'temperature': req.temperature},
+            'options': self._build_options(req),
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

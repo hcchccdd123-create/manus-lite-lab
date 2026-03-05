@@ -42,7 +42,11 @@ export const useStreamsStore = defineStore('streams', () => {
     sessions[conversationId] = defaultSession(conversationId)
   }
 
-  async function startStreaming(conversationId: string, message: string): Promise<void> {
+  async function startStreaming(
+    conversationId: string,
+    message: string,
+    options?: { enableThinking?: boolean }
+  ): Promise<void> {
     const chatStore = useChatStore()
     const session = getSession(conversationId)
 
@@ -70,12 +74,14 @@ export const useStreamsStore = defineStore('streams', () => {
     const controller = new AbortController()
     controllers.set(conversationId, controller)
 
+    const enableThinking = options?.enableThinking ?? true
+
     try {
       const reader = await openChatStream(
         {
           session_id: conversationId,
           message,
-          enable_thinking: true
+          enable_thinking: enableThinking
         },
         controller.signal
       )

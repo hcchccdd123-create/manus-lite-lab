@@ -46,7 +46,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
 ## Notes
 
 - SQLite database file default: `./data/chat.db`
-- Default provider: Ollama (`qwen3.5:0.8b`)
+- Default provider: GLM (`glm-4.7`)
+- Configure `GLM_API_KEY` only in local `.env` or deployment secret manager; never hardcode or commit real keys.
+- Default GLM base URL: `https://open.bigmodel.cn/api/paas/v4`
+- Loop guard for thinking stream is enabled by default (`ENABLE_THINKING_LOOP_GUARD=true`)
 - Stream endpoint: `POST /api/v1/chat/stream`
 - API docs: `http://localhost:8000/docs`
 - If you deploy frontend later, place build output in Nginx and reverse proxy `/api` to this service
