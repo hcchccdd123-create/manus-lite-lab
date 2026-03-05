@@ -42,7 +42,7 @@
 触发条件：草稿态输入并发送第一条消息。
 
 步骤：
-1. 前端先创建后端会话（拿到 `session_id`），并存入 `pendingConversations`。
+1. 前端先创建后端会话（默认 `provider=glm`、`model=glm-4.7`），拿到 `session_id` 并存入 `pendingConversations`。
 2. 建立 SSE（`POST /api/v1/chat/stream`）。
 3. 收到第一条流内容事件（`message.delta` 或 `message.thinking`）后，才将该会话从 pending 提升到左侧历史列表。
 4. 标题使用首问标准化文本前 20 字。
@@ -68,6 +68,19 @@
 - 消息区和 Think 区可持续增量更新。
 - 左栏 loading 与会话状态一致。
 
+### Flow D.1: 消息区自动滚底与手动接管
+触发条件：消息区有新增输出（用户发送、assistant 流式增量、会话切换）。
+
+步骤：
+1. 默认开启 `message-scroll` 自动滚底，增量内容到达后自动贴底。
+2. 用户手动上滚后，暂停自动滚底。
+3. 暂停期间在消息区右下角显示“回到底部”圆形悬浮按钮。
+4. 点击按钮后恢复自动滚底并立即滚动到底部。
+
+成功结果：
+- 用户可以自由回看历史内容，不被强制拉回。
+- 需要追踪最新输出时可一键恢复跟底。
+
 ### Flow E: 会话切换与并发隔离
 触发条件：A 会话流式过程中切换到 B。
 
@@ -81,7 +94,7 @@
 - 多会话流式完全隔离，不串流。
 
 ### Flow F: 删除会话
-触发条件：悬停会话项，点击标题区删除按钮。
+触发条件：悬停会话项（`conversation-item`），点击删除按钮。
 
 步骤：
 1. 打开 Element Plus 确认弹窗。
@@ -91,6 +104,18 @@
 
 成功结果：
 - 左栏、右侧、IndexedDB 三处状态一致。
+
+### Flow F.1: 深度思考开关
+触发条件：用户在输入框右下区域点击 Deep Thinking 按钮。
+
+步骤：
+1. 切换前端开关状态（开/关）。
+2. 发送请求时将状态写入 `enable_thinking`。
+3. 后端按 provider 路由：GLM/Ollama 使用该参数，其他 provider 安全降级。
+
+成功结果：
+- 用户可按需控制是否开启深度思考输出。
+- 前后端参数一致，状态不丢失。
 
 ### Flow G: Think 缩略与放大
 触发条件：当前会话存在 think 内容。
@@ -128,4 +153,4 @@
 - 缩略层误拦截点击：视为 P1 回归，必须修复 pointer-events 命中区。
 
 ---
-Last updated from codebase on 2026-03-05
+Last updated from codebase on 2026-03-06

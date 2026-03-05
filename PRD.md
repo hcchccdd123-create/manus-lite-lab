@@ -10,7 +10,7 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 ## 2. 目标用户
 - 个人开发者
 - AI 应用学习者
-- 需要本地 Ollama 优先、并可扩展云模型调用的用户
+- 需要 GLM 云模型优先、并可扩展本地 Ollama/其他模型的用户
 
 ## 3. In Scope（当前范围）
 1. 左侧会话列表与历史查看（支持删除）
@@ -23,14 +23,16 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 8. Markdown 渲染（正文 + think）
 9. IndexedDB 持久化（会话/消息/think）
 10. 后端记忆机制（window + summary snapshot）
-11. Provider 抽象：Ollama / GLM / Codex
+11. Provider 抽象：Ollama / GLM / Codex（默认 GLM `glm-4.7`）
 12. 删除确认弹窗（Element Plus，暗色风格统一）
-13. 会话项删除按钮仅在标题行 hover/focus 时显示，且固定在标题行最右侧
+13. 会话项删除按钮在 `conversation-item` hover/focus-within 时显示，固定在标题行最右侧
 14. 用户消息发送后需立即可见（乐观渲染），不得被异步历史加载覆盖
 15. Think 仅保留“放大居中面板 / 回缩略”交互（去掉展开/收起）
 16. 桌面缩略 Think 绝对定位在输入区：`top:-50px; left:30px`
 17. `message-scroll` 增加基础底部留白 `80px`，避免缩略模块遮挡
 18. 全局业务滚动区滚动条统一为高对比蓝色细条，悬停加亮
+19. 输入框发送按钮左侧提供“深度思考”开关（控制 `enable_thinking`）
+20. `message-scroll` 支持“自动滚底 / 手动暂停 / 一键恢复并滚底”
 
 ## 4. Out of Scope（明确不做）
 - 多用户登录与权限系统
@@ -82,12 +84,12 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 - 展开/收缩动画参考 macOS Genie Effect（神奇灯）风格
 
 ### Story E：我希望安全删除历史会话
-- Given 我悬停某会话标题
+- Given 我悬停某个会话项（conversation-item）
 - When 我点击删除并确认
 - Then 会话从列表与本地持久化移除，后端标记归档
 
 验收：
-- 删除按钮仅标题行 hover 或按钮 focus 时可见
+- 删除按钮在 `conversation-item` hover/focus-within 或按钮 focus 时可见
 - 弹窗风格与暗色主题一致
 - 删除当前会话后回草稿态
 
@@ -124,6 +126,27 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 - 默认细条，hover/focus 明显加亮，active 再增强
 - 非业务第三方弹层滚动条不被无差别重写
 
+### Story I：我希望消息区流式输出时自动滚底且可手动接管
+- Given assistant 正在持续流式输出
+- When 我没有手动上滚消息区
+- Then `message-scroll` 自动保持在底部，能实时看到最新输出
+
+验收：
+- 流式增量期间默认自动滚底
+- 用户手动上滚后立即暂停自动滚底
+- 暂停后在 `message-scroll` 右下角显示圆形悬浮按钮
+- 点击按钮后恢复自动滚底并立即滚动到底部
+
+### Story J：我希望按需开启/关闭深度思考模式
+- Given 我准备发送问题
+- When 我点击发送按钮左侧的“深度思考”开关
+- Then 本次后续请求携带对应 `enable_thinking` 状态（开启/关闭）
+
+验收：
+- 开关位于输入框发送按钮左侧，视觉状态明确
+- 开关状态变化后，后续流式请求 `enable_thinking` 与开关一致
+- GLM 与 Ollama 都支持该开关输入；不支持时后端安全降级
+
 ## 6.1 稳健验收（必须通过）
 1. 缩略模块不挡输入：
    - 缩略显示后，输入框任意位置可点击、可输入、可选中
@@ -131,6 +154,7 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 2. 80px 留白可用性：
    - `message-scroll` 基础 `padding-bottom` 固定为 `80px`
    - 在 100% / 125% / 150% 缩放下，最后一条消息不被缩略模块遮挡
+   - 用户上滚后，消息区“恢复自动滚底”按钮可见且点击后生效
 3. 滚动条不污染：
    - 所有业务滚动区样式统一为蓝色高对比细条
    - Element Plus 等第三方非业务滚动区不被意外重写
@@ -149,6 +173,7 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 - 滚动行为稳定（仅左栏与消息区滚动）
 - Think 展示清晰且不干扰正文阅读
 - 发送回显稳定：用户提问即时出现，无“只见 thinking 不见问题”的感知缺陷
+- 消息跟随稳定：流式输出默认跟底，用户可随时手动接管并一键恢复
 
 ## 8. 失败与边界场景
 1. Provider 不可用：`/health` 显示 false，聊天接口返回标准错误
@@ -163,4 +188,4 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 - 下一阶段聚焦：自动化测试覆盖与部署稳定性
 
 ---
-Last updated from codebase on 2026-03-05
+Last updated from codebase on 2026-03-06

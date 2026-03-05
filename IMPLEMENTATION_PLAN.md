@@ -32,6 +32,7 @@ DoD：
 - 可发起会话聊天
 - 流式消息可实时渲染
 - 左栏 loading 与会话状态同步
+- 删除按钮在 `conversation-item` hover 时可见
 
 ### Phase 3 - Think 与持久化（已完成）
 输入：SSE 多事件流。
@@ -40,6 +41,7 @@ DoD：
 - `message.thinking` 可实时展示
 - think 可缩略展示与放大查看
 - 刷新后会话/消息/think 可恢复
+- message-scroll 自动滚底 + 手动接管 + 一键恢复可用
 
 ### Phase 4 - 草稿态与历史展示规则（已完成）
 输入：现有会话交互。
@@ -57,6 +59,8 @@ DoD：
 - 部署脚本可执行
 - systemd 服务可运行
 - 生产环境变量模板完整
+- 默认 Provider 切换为 GLM（`glm-4.7`）
+- 输入区支持 Deep Thinking 开关并透传 `enable_thinking`
 - Think 缩略浮层（`70x70`）与居中放大交互稳定（含 Genie 风格开合动画）
 - 全局业务滚动条样式统一且不污染第三方组件
 
@@ -86,8 +90,11 @@ DoD：
 - 并发会话不串流
 - Think 缩略展示与居中放大
 - 刷新恢复与删除回退
+- 删除按钮在整条 `conversation-item` hover 时可见
 - Think 缩略模块不遮挡输入框/发送按钮
 - 消息区底部留白在 100% / 125% / 150% 缩放下可读
+- message-scroll 手动上滚后显示恢复按钮，点击后滚底并恢复自动滚动
+- Deep Thinking 开关状态变化后，stream payload `enable_thinking` 同步
 - 移动端输入框左侧 Think 入口可用
 - 滚动条 hover/active 反馈与跨浏览器一致性
 
@@ -97,9 +104,11 @@ DoD：
 - 首条流内容 reveal 规则
 - 删除弹窗视觉统一与行为正确
 - IndexedDB 数据一致性
+- 默认新会话 provider/model 为 `glm` / `glm-4.7`
 - 缩略 Think 定位：`top:-50px; left:30px`
 - 缩略 Think 外透明区不拦截 pointer 事件
 - `message-scroll` `padding-bottom: 80px` 生效
+- `message-scroll` 自动滚底暂停/恢复逻辑正确
 - 业务滚动条蓝色细条 + hover 加亮；第三方组件不被污染
 
 ## 6. OpenCloudOS 部署步骤（后端）
@@ -112,6 +121,7 @@ DoD：
 ## 7. 关键环境变量
 - `DB_URL`
 - `DEFAULT_PROVIDER`
+- `GLM_MODEL`
 - `DEFAULT_MODEL_OLLAMA`
 - `OLLAMA_BASE_URL`
 - `GLM_API_KEY` / `GLM_BASE_URL`
@@ -126,4 +136,4 @@ DoD：
 3. 对 `provider_call_logs` 增加前端可观测页面（调试态）。
 
 ---
-Last updated from codebase on 2026-03-05
+Last updated from codebase on 2026-03-06

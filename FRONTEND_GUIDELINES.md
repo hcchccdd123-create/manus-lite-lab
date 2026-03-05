@@ -47,15 +47,17 @@
 
 ### ConversationItem
 - 标题、更新时间、streaming spinner。
-- 删除按钮位于标题行最右侧，仅标题行 hover 或按钮 focus 时显示。
+- 删除按钮位于标题行最右侧，在 `conversation-item` hover/focus-within 或按钮 focus 时显示。
 
 ### ChatPanel
 - 顶部会话标题与 streaming 状态。
 - 草稿态：右侧空白 + 输入框垂直居中。
 - 会话态：消息区 + 底部输入框 + 缩略 Think 浮层（桌面）。
+- 消息区支持自动滚底；用户手动上滚后暂停，并显示“恢复自动滚底”圆形悬浮按钮。
 
 ### Composer
 - 输入框内右下角圆形发送按钮（上箭头图标）。
+- 发送按钮左侧提供“深度思考”开关按钮（高亮表示开启）。
 - Enter 发送，Shift+Enter 换行。
 
 ### ThinkPanel
@@ -71,6 +73,7 @@
 - 放大面板底部悬浮“回到底部”按钮，点击后恢复自动滚底。
 
 ## 5. 关键交互规范
+- 默认新会话使用 `provider=glm`、`model=glm-4.7`。
 - `+ New` 只进入草稿态，不立即创建历史会话项。
 - 首发后 pending 会话仅在收到第一条流内容时进入左栏。
 - 标题规则：首问 `trim + 压缩空白 + 前 20 字`。
@@ -78,6 +81,9 @@
 - 删除会话使用 Element Plus 确认弹窗，样式必须覆盖为暗色体系。
 - 缩略 Think 外透明区不可拦截指针事件，不得影响输入框点击与输入。
 - 移动端（`<=980px`）隐藏缩略 Think，输入框左侧显示放大入口（仅有 think 内容时显示）。
+- `message-scroll` 默认自动滚底；用户手动上滚后暂停自动滚底。
+- 暂停期间消息区右下角显示恢复按钮，点击后恢复自动滚底并滚到底部。
+- Deep Thinking 开关状态要透传到 `/api/v1/chat/stream` 的 `enable_thinking` 字段。
 
 ## 6. 滚动条规范
 - 覆盖业务滚动容器：会话列表、消息区、think 缩略内容、think 放大区内容、业务 markdown code block。
@@ -100,4 +106,4 @@
 - 将 think 文本直接混排进 assistant 正文。
 
 ---
-Last updated from codebase on 2026-03-05
+Last updated from codebase on 2026-03-06
