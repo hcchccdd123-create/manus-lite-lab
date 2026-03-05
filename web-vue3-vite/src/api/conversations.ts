@@ -22,3 +22,9 @@ export function patchConversation(conversationId: string, payload: Record<string
     body: JSON.stringify(payload)
   })
 }
+
+export function deleteConversation(conversationId: string) {
+  return request<Conversation>(`/api/v1/conversations/${conversationId}`, {
+    method: 'DELETE'
+  })
+}

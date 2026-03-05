@@ -5,6 +5,7 @@ export interface StreamPayload {
   message: string
   provider?: 'ollama' | 'glm' | 'codex'
   model?: string
+  enable_thinking?: boolean
 }
 
 export async function openChatStream(payload: StreamPayload, signal?: AbortSignal) {

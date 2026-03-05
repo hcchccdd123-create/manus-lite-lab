@@ -14,10 +14,12 @@ class OllamaProvider:
         self.timeout = timeout_seconds
 
     async def chat(self, req: ChatRequest) -> ChatResponse:
+        enable_thinking = req.enable_thinking if req.enable_thinking is not None else True
         payload = {
             'model': req.model,
             'messages': [m.model_dump() for m in req.messages],
             'stream': False,
+            'think': enable_thinking,
             'options': {'temperature': req.temperature},
         }
         try:
@@ -39,10 +41,12 @@ class OllamaProvider:
         return ChatResponse(text=message.get('content', ''), usage=usage, raw=data)
 
     async def stream_chat(self, req: ChatRequest) -> AsyncGenerator[ChatChunk, None]:
+        enable_thinking = req.enable_thinking if req.enable_thinking is not None else True
         payload = {
             'model': req.model,
             'messages': [m.model_dump() for m in req.messages],
             'stream': True,
+            'think': enable_thinking,
             'options': {'temperature': req.temperature},
         }
         try:
@@ -55,6 +59,9 @@ class OllamaProvider:
                         chunk = httpx.Response(200, text=line).json()
                         msg = chunk.get('message', {})
                         delta = msg.get('content', '')
+                        thinking_delta = msg.get('thinking', '')
+                        if thinking_delta:
+                            yield ChatChunk(delta='', thinking=thinking_delta)
                         if delta:
                             yield ChatChunk(delta=delta)
                         if chunk.get('done'):

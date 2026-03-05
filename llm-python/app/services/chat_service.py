@@ -40,6 +40,7 @@ class ChatService:
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
+        enable_thinking: bool | None = None,
     ):
         request_id = new_request_id()
         conv = await self.conversation_repo.get(session_id)
@@ -66,6 +67,7 @@ class ChatService:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=False,
+            enable_thinking=enable_thinking if provider_name == 'ollama' else False,
         )
         resp = await self.provider_router.chat(req, conversation_id=session_id, request_id=request_id)
 
@@ -105,6 +107,7 @@ class ChatService:
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
+        enable_thinking: bool | None = None,
     ) -> AsyncGenerator[dict, None]:
         request_id = new_request_id()
         conv = await self.conversation_repo.get(session_id)
@@ -131,11 +134,16 @@ class ChatService:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
+            enable_thinking=enable_thinking if provider_name == 'ollama' else False,
         )
 
         yield {'event': 'message.start', 'data': {'request_id': request_id}}
         chunks: list[str] = []
+        thinking_chunks: list[str] = []
         async for chunk in self.provider_router.stream_chat(req, conversation_id=session_id, request_id=request_id):
+            if chunk.thinking:
+                thinking_chunks.append(chunk.thinking)
+                yield {'event': 'message.thinking', 'data': {'delta': chunk.thinking}}
             if chunk.delta:
                 chunks.append(chunk.delta)
                 yield {'event': 'message.delta', 'data': {'delta': chunk.delta}}
@@ -173,7 +181,7 @@ class ChatService:
 
         yield {
             'event': 'message.end',
-            'data': {'text': assistant_text, 'request_id': request_id},
+            'data': {'text': assistant_text, 'thinking': ''.join(thinking_chunks), 'request_id': request_id},
         }
 
     async def _build_context_messages(self, conv, current_user_message: str) -> list[ChatMessage]:

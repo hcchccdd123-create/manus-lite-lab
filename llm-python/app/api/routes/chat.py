@@ -29,6 +29,7 @@ async def chat(
             model=payload.model,
             temperature=payload.temperature,
             max_tokens=payload.max_tokens,
+            enable_thinking=payload.enable_thinking,
         )
     except ValueError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
@@ -65,6 +66,7 @@ async def chat_stream(
                 model=payload.model,
                 temperature=payload.temperature,
                 max_tokens=payload.max_tokens,
+                enable_thinking=payload.enable_thinking,
             ):
                 yield {'event': evt['event'], 'data': json.dumps(evt['data'], ensure_ascii=False)}
         except Exception as err:

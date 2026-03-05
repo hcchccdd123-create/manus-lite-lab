@@ -17,11 +17,13 @@ class ChatRequest(BaseModel):
     temperature: float = 0.7
     max_tokens: int | None = None
     stream: bool = False
+    enable_thinking: bool | None = None
     metadata: dict | None = None
 
 
 class ChatChunk(BaseModel):
     delta: str
+    thinking: str | None = None
     finish_reason: str | None = None
 
 

@@ -1,8 +1,9 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { createConversation, getMessages, listConversations } from '@/api/conversations'
+import { createConversation, deleteConversation, getMessages, listConversations } from '@/api/conversations'
 import {
+  deleteConversationData,
   loadAllMessages,
   loadConversations,
   loadThinkStates,
@@ -12,10 +13,17 @@ import {
   saveMessages,
   saveThinkState
 } from '@/persistence/indexeddb'
-import type { Conversation, Message, ThinkState } from '@/types/chat'
+import type { Conversation, Message, PendingConversationMeta, ThinkState, UiMode } from '@/types/chat'
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+function lastNonDraftMessage(messages: Message[]): Message | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (!messages[i].isStreamingDraft) return messages[i]
+  }
+  return null
 }
 
 function draftAssistantMessage(conversationId: string): Message {
@@ -32,9 +40,17 @@ function draftAssistantMessage(conversationId: string): Message {
   }
 }
 
+function buildConversationTitleFromFirstPrompt(text: string): string {
+  const compact = text.trim().replace(/\s+/g, ' ')
+  if (!compact) return 'New chat'
+  return compact.slice(0, 20)
+}
+
 export const useChatStore = defineStore('chat', () => {
+  const uiMode = ref<UiMode>('draft')
   const conversations = ref<Conversation[]>([])
   const activeConversationId = ref<string | null>(null)
+  const pendingConversations = ref<Record<string, PendingConversationMeta>>({})
   const messagesByConversation = ref<Record<string, Message[]>>({})
   const thinkStatesByConversation = ref<Record<string, ThinkState>>({})
 
@@ -52,8 +68,14 @@ export const useChatStore = defineStore('chat', () => {
     return thinkStatesByConversation.value[activeConversationId.value] || null
   })
 
-  function setActiveConversation(id: string): void {
+  function enterDraftMode(): void {
+    activeConversationId.value = null
+    uiMode.value = 'draft'
+  }
+
+  function setActiveConversation(id: string | null): void {
     activeConversationId.value = id
+    uiMode.value = id ? 'conversation' : 'draft'
   }
 
   function upsertConversation(conversation: Conversation): void {
@@ -65,6 +87,41 @@ export const useChatStore = defineStore('chat', () => {
     }
     conversations.value.sort((a, b) => (a.last_active_at < b.last_active_at ? 1 : -1))
     void saveConversation(conversations.value.find((item) => item.id === conversation.id) as Conversation)
+  }
+
+  function revealPendingConversation(conversationId: string): void {
+    const pending = pendingConversations.value[conversationId]
+    if (!pending) return
+
+    const visible: Conversation = {
+      id: pending.id,
+      title: pending.title,
+      status: 'active',
+      provider: pending.provider,
+      model: pending.model,
+      system_prompt: null,
+      memory_mode: 'window_summary',
+      memory_window_size: 12,
+      summary_message_count: 0,
+      created_at: pending.created_at,
+      updated_at: pending.updated_at,
+      last_active_at: pending.last_active_at,
+      isStreaming: true
+    }
+
+    delete pendingConversations.value[conversationId]
+    upsertConversation(visible)
+  }
+
+  function dropPendingConversation(conversationId: string): void {
+    if (!pendingConversations.value[conversationId]) return
+    delete pendingConversations.value[conversationId]
+    delete messagesByConversation.value[conversationId]
+    delete thinkStatesByConversation.value[conversationId]
+    void deleteConversationData(conversationId)
+    if (activeConversationId.value === conversationId) {
+      enterDraftMode()
+    }
   }
 
   function setConversationStreaming(conversationId: string, isStreaming: boolean, requestId?: string): void {
@@ -106,7 +163,7 @@ export const useChatStore = defineStore('chat', () => {
   function appendUserMessage(conversationId: string, text: string): void {
     ensureMessages(conversationId)
     const list = messagesByConversation.value[conversationId]
-    const nextSeq = (list[list.length - 1]?.sequence_no || 0) + 1
+    const nextSeq = (lastNonDraftMessage(list)?.sequence_no || 0) + 1
     const message: Message = {
       id: `local-user-${Date.now()}`,
       conversation_id: conversationId,
@@ -144,7 +201,7 @@ export const useChatStore = defineStore('chat', () => {
     ensureMessages(conversationId)
     const list = messagesByConversation.value[conversationId]
     const draftIndex = list.findIndex((item) => item.isStreamingDraft)
-    const nextSeq = (list.filter((item) => !item.isStreamingDraft).at(-1)?.sequence_no || 0) + 1
+    const nextSeq = (lastNonDraftMessage(list)?.sequence_no || 0) + 1
 
     const finalMessage: Message = {
       id: `local-assistant-${Date.now()}`,
@@ -193,32 +250,41 @@ export const useChatStore = defineStore('chat', () => {
     }
     thinkStatesByConversation.value = thinkMap
 
-    if (conversations.value.length > 0 && !activeConversationId.value) {
-      activeConversationId.value = conversations.value[0].id
-    }
+    enterDraftMode()
   }
 
   async function syncConversationsFromServer(): Promise<void> {
     const response = await listConversations()
     const serverRows = response.data || []
     conversations.value = serverRows.map((item) => ({ ...item, isStreaming: false }))
-    if (!activeConversationId.value && conversations.value.length > 0) {
-      activeConversationId.value = conversations.value[0].id
-    }
     await saveConversations(conversations.value)
+    enterDraftMode()
   }
 
-  async function createConversationAction(): Promise<Conversation> {
+  async function createPendingConversationAction(firstPrompt: string): Promise<string> {
+    const title = buildConversationTitleFromFirstPrompt(firstPrompt)
     const response = await createConversation({
-      title: 'New chat',
+      title,
       provider: 'ollama',
       model: 'qwen3.5:0.8b'
     })
-    const conversation = { ...response.data, isStreaming: false } as Conversation
-    upsertConversation(conversation)
-    ensureMessages(conversation.id)
-    activeConversationId.value = conversation.id
-    return conversation
+
+    const created = response.data
+    const pending: PendingConversationMeta = {
+      id: created.id,
+      title,
+      provider: created.provider,
+      model: created.model,
+      created_at: created.created_at,
+      updated_at: created.updated_at,
+      last_active_at: created.last_active_at
+    }
+
+    pendingConversations.value[created.id] = pending
+    ensureMessages(created.id)
+    activeConversationId.value = created.id
+    uiMode.value = 'conversation'
+    return created.id
   }
 
   async function loadMessages(conversationId: string): Promise<void> {
@@ -228,16 +294,36 @@ export const useChatStore = defineStore('chat', () => {
     await saveMessages(messagesByConversation.value[conversationId])
   }
 
+  async function deleteConversationAction(conversationId: string): Promise<void> {
+    await deleteConversation(conversationId)
+
+    conversations.value = conversations.value.filter((item) => item.id !== conversationId)
+    delete messagesByConversation.value[conversationId]
+    delete thinkStatesByConversation.value[conversationId]
+    delete pendingConversations.value[conversationId]
+
+    if (activeConversationId.value === conversationId) {
+      enterDraftMode()
+    }
+
+    await deleteConversationData(conversationId)
+  }
+
   return {
+    uiMode,
     conversations,
     activeConversationId,
+    pendingConversations,
     messagesByConversation,
     thinkStatesByConversation,
     activeConversation,
     activeMessages,
     activeThinkState,
+    enterDraftMode,
     setActiveConversation,
     upsertConversation,
+    revealPendingConversation,
+    dropPendingConversation,
     setConversationStreaming,
     setThinkState,
     appendUserMessage,
@@ -246,7 +332,9 @@ export const useChatStore = defineStore('chat', () => {
     finalizeAssistantMessage,
     hydrateFromIndexedDb,
     syncConversationsFromServer,
-    createConversationAction,
-    loadMessages
+    createPendingConversationAction,
+    loadMessages,
+    deleteConversationAction,
+    buildConversationTitleFromFirstPrompt
   }
 })

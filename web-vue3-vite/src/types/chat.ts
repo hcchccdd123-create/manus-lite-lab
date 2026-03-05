@@ -1,4 +1,5 @@
 export type ConversationStatus = 'active' | 'archived'
+export type UiMode = 'draft' | 'conversation'
 
 export interface Conversation {
   id: string
@@ -45,4 +46,15 @@ export interface StreamSession {
   thinkBuffer: string
   parserMode: 'normal' | 'think'
   tagBuffer: string
+  hasReceivedFirstChunk: boolean
+}
+
+export interface PendingConversationMeta {
+  id: string
+  title: string
+  provider: 'ollama' | 'glm' | 'codex'
+  model: string
+  created_at: string
+  updated_at: string
+  last_active_at: string
 }

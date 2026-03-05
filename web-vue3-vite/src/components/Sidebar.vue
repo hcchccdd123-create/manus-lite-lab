@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
+import { ElMessageBox } from 'element-plus'
 
 import { useChatStore } from '@/stores/chat'
 import ConversationItem from './ConversationItem.vue'
@@ -8,11 +9,31 @@ const chatStore = useChatStore()
 const { conversations, activeConversationId } = storeToRefs(chatStore)
 
 async function createConversation() {
-  await chatStore.createConversationAction()
+  chatStore.enterDraftMode()
 }
 
 function selectConversation(id: string) {
   chatStore.setActiveConversation(id)
+}
+
+async function removeConversation(id: string) {
+  try {
+    await ElMessageBox.confirm(
+      'Deleting this thread will remove local history and archive it on backend. Continue?',
+      'Delete Conversation',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        customClass: 'dark-message-box',
+        confirmButtonClass: 'danger-confirm-btn',
+        cancelButtonClass: 'dark-cancel-btn',
+        type: 'warning'
+      }
+    )
+    await chatStore.deleteConversationAction(id)
+  } catch {
+    // canceled
+  }
 }
 </script>
 
@@ -35,9 +56,8 @@ function selectConversation(id: string) {
         :conversation="item"
         :active="item.id === activeConversationId"
         @select="selectConversation"
+        @remove="removeConversation"
       />
     </div>
-
-    <button class="settings-btn" type="button">Settings</button>
   </aside>
 </template>

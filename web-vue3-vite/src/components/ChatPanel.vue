@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 
 import Composer from './Composer.vue'
@@ -12,7 +12,7 @@ import { useAutoScroll } from '@/composables/useAutoScroll'
 
 const chatStore = useChatStore()
 const streamsStore = useStreamsStore()
-const { activeConversation, activeConversationId, activeMessages, activeThinkState } = storeToRefs(chatStore)
+const { uiMode, activeConversation, activeConversationId, activeMessages, activeThinkState } = storeToRefs(chatStore)
 
 const input = ref('')
 const showThinkModal = ref(false)
@@ -26,8 +26,7 @@ async function sendMessage() {
   if (!text) return
 
   if (!target) {
-    const conversation = await chatStore.createConversationAction()
-    target = conversation.id
+    target = await chatStore.createPendingConversationAction(text)
   }
 
   input.value = ''
@@ -35,6 +34,8 @@ async function sendMessage() {
   await nextTick()
   await scrollToBottom(messageContainer.value)
 }
+
+const isDraftMode = computed(() => uiMode.value === 'draft' || !activeConversationId.value)
 
 function toggleThinkCollapse() {
   const think = activeThinkState.value
@@ -45,6 +46,7 @@ function toggleThinkCollapse() {
 watch(
   () => [activeConversationId.value, activeMessages.value.length, activeThinkState.value?.rawText],
   async () => {
+    if (isDraftMode.value) return
     await scrollToBottom(messageContainer.value)
   },
   { deep: true }
@@ -52,19 +54,29 @@ watch(
 </script>
 
 <template>
-  <section class="chat-panel">
+  <section class="chat-panel" :class="{ 'chat-panel--draft': isDraftMode }">
     <header class="chat-header">
       <h2>{{ activeConversation?.title || 'New conversation' }}</h2>
       <p v-if="activeConversation?.isStreaming" class="streaming-label">Generating response...</p>
     </header>
 
-    <ThinkPanel :think-state="activeThinkState" @toggle="toggleThinkCollapse" @expand="showThinkModal = true" />
-
-    <div ref="messageContainer" class="message-scroll">
-      <MessageList :messages="activeMessages" />
+    <div v-if="isDraftMode" class="draft-stage">
+      <div class="composer-wrap centered">
+        <Composer v-model="input" :disabled="false" @submit="sendMessage" />
+      </div>
     </div>
 
-    <Composer v-model="input" :disabled="false" @submit="sendMessage" />
+    <template v-else>
+      <ThinkPanel :think-state="activeThinkState" @toggle="toggleThinkCollapse" @expand="showThinkModal = true" />
+
+      <div ref="messageContainer" class="message-scroll">
+        <MessageList :messages="activeMessages" />
+      </div>
+
+      <div class="composer-wrap">
+        <Composer v-model="input" :disabled="false" @submit="sendMessage" />
+      </div>
+    </template>
 
     <ThinkModal
       :open="showThinkModal"

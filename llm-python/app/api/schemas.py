@@ -65,6 +65,7 @@ class ChatRequestIn(BaseModel):
     model: str | None = None
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int | None = Field(default=None, ge=1)
+    enable_thinking: bool | None = None
 
 
 class ChatResponseOut(BaseModel):

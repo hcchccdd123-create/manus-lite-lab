@@ -70,3 +70,21 @@ export async function loadThinkStates(): Promise<ThinkState[]> {
   const db = await dbPromise
   return db.getAll('think_states') as Promise<ThinkState[]>
 }
+
+export async function deleteConversationData(conversationId: string): Promise<void> {
+  const db = await dbPromise
+  const tx = db.transaction(['conversations', 'messages', 'think_states'], 'readwrite')
+
+  await tx.objectStore('conversations').delete(conversationId)
+  await tx.objectStore('think_states').delete(conversationId)
+
+  const messageStore = tx.objectStore('messages')
+  const index = messageStore.index('by_conversation')
+  let cursor = await index.openCursor(conversationId)
+  while (cursor) {
+    await cursor.delete()
+    cursor = await cursor.continue()
+  }
+
+  await tx.done
+}

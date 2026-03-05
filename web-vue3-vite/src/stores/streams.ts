@@ -22,7 +22,8 @@ function defaultSession(conversationId: string): StreamSession {
     assistantBuffer: '',
     thinkBuffer: '',
     parserMode: 'normal',
-    tagBuffer: ''
+    tagBuffer: '',
+    hasReceivedFirstChunk: false
   }
 }
 
@@ -55,6 +56,7 @@ export const useStreamsStore = defineStore('streams', () => {
     session.thinkBuffer = ''
     session.parserMode = 'normal'
     session.tagBuffer = ''
+    session.hasReceivedFirstChunk = false
 
     chatStore.appendUserMessage(conversationId, message)
     chatStore.beginAssistantDraft(conversationId)
@@ -72,7 +74,8 @@ export const useStreamsStore = defineStore('streams', () => {
       const reader = await openChatStream(
         {
           session_id: conversationId,
-          message
+          message,
+          enable_thinking: true
         },
         controller.signal
       )
@@ -99,6 +102,12 @@ export const useStreamsStore = defineStore('streams', () => {
 
           if (!delta) return
 
+          if (!session.hasReceivedFirstChunk) {
+            session.hasReceivedFirstChunk = true
+            chatStore.revealPendingConversation(conversationId)
+            chatStore.setConversationStreaming(conversationId, true)
+          }
+
           const split = splitThinkDelta(delta, session.parserMode, session.tagBuffer)
           session.parserMode = split.mode
           session.tagBuffer = split.tagBuffer
@@ -119,10 +128,35 @@ export const useStreamsStore = defineStore('streams', () => {
           return
         }
 
+        if (event.event === 'message.thinking') {
+          let thinkingDelta = ''
+          try {
+            thinkingDelta = JSON.parse(event.data).delta || ''
+          } catch {
+            thinkingDelta = event.data || ''
+          }
+          if (!thinkingDelta) return
+          if (!session.hasReceivedFirstChunk) {
+            session.hasReceivedFirstChunk = true
+            chatStore.revealPendingConversation(conversationId)
+            chatStore.setConversationStreaming(conversationId, true)
+          }
+          session.thinkBuffer += thinkingDelta
+          chatStore.setThinkState(conversationId, {
+            rawText: session.thinkBuffer,
+            isThinking: true,
+            isCollapsed: false
+          })
+          return
+        }
+
         if (event.event === 'message.end') {
           let finalText = session.assistantBuffer
+          let finalThinking = session.thinkBuffer
           try {
-            finalText = JSON.parse(event.data).text || finalText
+            const payload = JSON.parse(event.data)
+            finalText = payload.text || finalText
+            finalThinking = payload.thinking || finalThinking
           } catch {
             finalText = session.assistantBuffer
           }
@@ -131,12 +165,15 @@ export const useStreamsStore = defineStore('streams', () => {
           chatStore.finalizeAssistantMessage(conversationId, split.normalText || session.assistantBuffer)
           chatStore.setConversationStreaming(conversationId, false)
           chatStore.setThinkState(conversationId, {
-            rawText: split.thinkText || session.thinkBuffer,
+            rawText: finalThinking || split.thinkText || session.thinkBuffer,
             isThinking: false,
             isCollapsed: true
           })
 
           session.status = 'done'
+          if (!session.hasReceivedFirstChunk) {
+            chatStore.dropPendingConversation(conversationId)
+          }
           return
         }
 
@@ -145,6 +182,9 @@ export const useStreamsStore = defineStore('streams', () => {
           session.status = 'error'
           chatStore.setConversationStreaming(conversationId, false)
           chatStore.setThinkState(conversationId, { isThinking: false, isCollapsed: true })
+          if (!session.hasReceivedFirstChunk) {
+            chatStore.dropPendingConversation(conversationId)
+          }
         }
       })
 
@@ -158,6 +198,9 @@ export const useStreamsStore = defineStore('streams', () => {
       errors[conversationId] = error instanceof Error ? error.message : 'Stream failed'
       chatStore.setConversationStreaming(conversationId, false)
       chatStore.setThinkState(conversationId, { isThinking: false, isCollapsed: true })
+      if (!session.hasReceivedFirstChunk) {
+        chatStore.dropPendingConversation(conversationId)
+      }
     } finally {
       controllers.delete(conversationId)
     }
