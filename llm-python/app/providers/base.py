@@ -20,6 +20,7 @@ class ChatRequest(BaseModel):
     max_tokens: int | None = None
     stream: bool = False
     enable_thinking: bool | None = None
+    tools: list[dict] | None = None
     metadata: dict | None = None
 
 

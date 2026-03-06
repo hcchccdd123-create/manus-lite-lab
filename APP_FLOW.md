@@ -61,7 +61,7 @@
 2. `message.thinking`：追加 think 文本，缩略 Think（70x70）实时更新并自动滚底。
 3. `message.delta`：追加 assistant 正文草稿。
 4. `memory.updated`：更新摘要状态（可选事件）。
-5. `message.end`：固化 assistant 消息、结束 loading，Think 保留缩略可回看状态。
+5. `message.end`：固化 assistant 消息、结束 loading，Think 保留缩略可回看状态；并携带 `termination_reason`（若触发 guard）。
 6. `error`：结束当前会话流状态并记录错误。
 
 成功结果：
@@ -116,6 +116,21 @@
 成功结果：
 - 用户可按需控制是否开启深度思考输出。
 - 前后端参数一致，状态不丢失。
+- `enable_thinking` 未传时，后端默认开启（GLM/Ollama）。
+
+### Flow F.2: Web Search 开关与后端意图拦截
+触发条件：用户提问可能依赖实时信息（如天气/新闻/行情）。
+
+步骤：
+1. 输入区 `Web` 开关默认关闭，用户可手动开启。
+2. 发送请求时携带 `enable_web_search`（true/false）。
+3. 后端进行意图识别：
+   - 若命中“实时网络查询”且未开启 Web Search，直接返回标准提示，不调用模型自由生成。
+   - 若已开启 Web Search，则按 provider 能力（GLM）注入 `web_search` 工具继续回答。
+
+成功结果：
+- 未联网时不会编造实时信息。
+- 已联网时可基于搜索结果回答时效问题。
 
 ### Flow G: Think 缩略与放大
 触发条件：当前会话存在 think 内容。
@@ -155,6 +170,7 @@
 失败处理：
 - 工具超时/参数错误：显示 `tool_result(error)` 并由后端决定继续或终止。
 - 达到步数上限：显示标准终止原因（例如 `step_limit_reached`）。
+- thinking 超时或重复触发 guard：显示标准终止原因（`thinking_timeout` / `thinking_guard_triggered`）。
 
 ## 3. 决策点
 - 当前是否为草稿态。

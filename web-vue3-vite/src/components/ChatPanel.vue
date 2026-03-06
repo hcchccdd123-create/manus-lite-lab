@@ -15,6 +15,11 @@ const { uiMode, activeConversation, activeConversationId, activeMessages, active
 const input = ref('')
 const isThinkExpanded = ref(false)
 const deepThinkingEnabled = ref(true)
+const runtimeMode = ref<'chat' | 'agent'>('chat')
+const webSearchEnabled = ref(false)
+const lastRequestAt = ref<string>('')
+const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+const isDev = import.meta.env.DEV
 const chatPanelRef = ref<HTMLElement | null>(null)
 const messageContainer = ref<HTMLElement | null>(null)
 const messageAutoScrollEnabled = ref(true)
@@ -23,6 +28,24 @@ let releaseMessageScrollLockId: number | null = null
 
 const hasThinkContent = computed(() => Boolean(activeThinkState.value?.rawText))
 const showRestoreMessageScroll = computed(() => !messageAutoScrollEnabled.value)
+const debugRequestBaseline = computed(() => {
+  if (!lastRequestAt.value) return ''
+  return `${lastRequestAt.value} (${localTimezone})`
+})
+const activeTerminationReason = computed(() => {
+  const id = activeConversationId.value
+  if (!id) return ''
+  return streamsStore.getSession(id).terminationReason || ''
+})
+const terminationReasonLabel = computed(() => {
+  if (activeTerminationReason.value === 'thinking_timeout') {
+    return 'Thinking 自动终止（超时）'
+  }
+  if (activeTerminationReason.value === 'thinking_guard_triggered') {
+    return 'Thinking 自动终止（重复/过长）'
+  }
+  return ''
+})
 const activeMessageContentSignature = computed(() =>
   activeMessages.value
     .map((item) => `${item.id}:${item.content.length}:${item.isStreamingDraft ? 1 : 0}`)
@@ -57,8 +80,11 @@ async function sendMessage() {
   }
 
   input.value = ''
+  lastRequestAt.value = new Date().toISOString()
   void streamsStore.startStreaming(target, text, {
-    enableThinking: deepThinkingEnabled.value
+    enableThinking: deepThinkingEnabled.value,
+    runtimeMode: runtimeMode.value,
+    enableWebSearch: webSearchEnabled.value
   })
   await nextTick()
   messageAutoScrollEnabled.value = true
@@ -78,6 +104,14 @@ function closeThinkPanel() {
 
 function toggleDeepThinking(nextValue: boolean) {
   deepThinkingEnabled.value = nextValue
+}
+
+function toggleRuntimeMode(nextMode: 'chat' | 'agent') {
+  runtimeMode.value = nextMode
+}
+
+function toggleWebSearch(nextValue: boolean) {
+  webSearchEnabled.value = nextValue
 }
 
 function onMessageScroll() {
@@ -129,8 +163,17 @@ onBeforeUnmount(() => {
 <template>
   <section ref="chatPanelRef" class="chat-panel" :class="{ 'chat-panel--draft': isDraftMode }">
     <header class="chat-header">
-      <h2>{{ activeConversation?.title || 'New conversation' }}</h2>
+      <div class="chat-header-main">
+        <h2>{{ activeConversation?.title || 'New conversation' }}</h2>
+        <div v-if="isDev" class="dev-runtime-baseline">
+          <span>Runtime: {{ runtimeMode }}</span>
+          <span>Web Search: {{ webSearchEnabled ? 'on' : 'off' }}</span>
+          <span>Timezone: {{ localTimezone }}</span>
+          <span v-if="debugRequestBaseline">Last request: {{ debugRequestBaseline }}</span>
+        </div>
+      </div>
       <p v-if="activeConversation?.isStreaming" class="streaming-label">Generating response...</p>
+      <p v-else-if="terminationReasonLabel" class="termination-label">{{ terminationReasonLabel }}</p>
     </header>
 
     <div v-if="isDraftMode" class="draft-stage">
@@ -139,7 +182,11 @@ onBeforeUnmount(() => {
           v-model="input"
           :disabled="false"
           :deep-thinking-enabled="deepThinkingEnabled"
+          :runtime-mode="runtimeMode"
+          :web-search-enabled="webSearchEnabled"
           @toggle-deep-thinking="toggleDeepThinking"
+          @toggle-runtime-mode="toggleRuntimeMode"
+          @toggle-web-search="toggleWebSearch"
           @submit="sendMessage"
         />
       </div>
@@ -184,7 +231,11 @@ onBeforeUnmount(() => {
           v-model="input"
           :disabled="false"
           :deep-thinking-enabled="deepThinkingEnabled"
+          :runtime-mode="runtimeMode"
+          :web-search-enabled="webSearchEnabled"
           @toggle-deep-thinking="toggleDeepThinking"
+          @toggle-runtime-mode="toggleRuntimeMode"
+          @toggle-web-search="toggleWebSearch"
           @submit="sendMessage"
         />
         <ThinkPanel

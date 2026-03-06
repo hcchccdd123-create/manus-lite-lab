@@ -65,13 +65,20 @@
 - Ollama Base URL: `http://127.0.0.1:11434`
 - 默认模型：`glm-4.7`
 - Provider 抽象：`ollama` / `glm` / `codex`
-- Thinking: GLM / Ollama 路径均可通过请求参数控制
+- Thinking: GLM / Ollama 路径均可通过请求参数控制，未传时后端默认开启
+- Web Search: 通过 GLM tools（`web_search`）启用；前端默认关闭，按需手动开启
 
 ## 5. Agent Runtime（规划能力）
 - Runtime 形态：Chat + Agent 双模式
 - 推理循环：`thinking -> tool_call -> tool_result -> final_answer`
 - 工具层：统一 Tool Registry + 参数 Schema 校验 + 超时控制
 - 可观测性：支持 step 级事件流与日志持久化（用于调试和回放）
+
+## 5.1 当前可用运行时保护
+- 时区上下文注入：`APP_TIMEZONE`（默认 `Asia/Shanghai`）
+- thinking 止损：`THINKING_LOOP_MAX_CHARS` / `THINKING_LOOP_REPEAT_THRESHOLD` / `THINKING_LOOP_MAX_SECONDS`
+- 终止可观测：`message.end` 返回 `termination_reason`
+- 时效问题防幻觉：未开启 Web Search 时由后端意图识别并提示用户开启联网
 
 ## 6. 存储与数据
 - 后端数据库：SQLite（`sqlite+aiosqlite:///./data/chat.db`）

@@ -35,8 +35,18 @@ class GLMProvider:
         return next_payload
 
     @staticmethod
+    def _without_tools(payload: dict) -> dict:
+        next_payload = dict(payload)
+        next_payload.pop('tools', None)
+        return next_payload
+
+    @staticmethod
     def _should_retry_without_thinking(resp: httpx.Response, payload: dict) -> bool:
         return resp.status_code == 400 and 'thinking' in payload
+
+    @staticmethod
+    def _should_retry_without_tools(resp: httpx.Response, payload: dict) -> bool:
+        return resp.status_code == 400 and 'tools' in payload
 
     def _chat_urls(self) -> list[str]:
         base = self.base_url
@@ -60,6 +70,8 @@ class GLMProvider:
             'max_tokens': req.max_tokens,
             'stream': False,
         }
+        if req.tools:
+            payload['tools'] = req.tools
         if req.top_p is None:
             payload.pop('top_p')
         self._attach_thinking(payload, req.enable_thinking)
@@ -70,6 +82,9 @@ class GLMProvider:
                     resp = await client.post(url, headers=self._headers(), json=payload)
                     if self._should_retry_without_thinking(resp, payload):
                         payload = self._without_thinking(payload)
+                        resp = await client.post(url, headers=self._headers(), json=payload)
+                    if self._should_retry_without_tools(resp, payload):
+                        payload = self._without_tools(payload)
                         resp = await client.post(url, headers=self._headers(), json=payload)
                     if resp.status_code == 404:
                         continue
@@ -99,6 +114,8 @@ class GLMProvider:
             'max_tokens': req.max_tokens,
             'stream': True,
         }
+        if req.tools:
+            payload['tools'] = req.tools
         if req.top_p is None:
             payload.pop('top_p')
         self._attach_thinking(payload, req.enable_thinking)
@@ -115,6 +132,17 @@ class GLMProvider:
                         last_http_error = exc
                         if self._should_retry_without_thinking(exc.response, current_payload):
                             current_payload = self._without_thinking(current_payload)
+                            try:
+                                async for chunk in self._stream_payload(client, url, current_payload):
+                                    yield chunk
+                                return
+                            except httpx.HTTPStatusError as retry_exc:
+                                last_http_error = retry_exc
+                                if retry_exc.response.status_code == 404:
+                                    continue
+                                raise
+                        if self._should_retry_without_tools(exc.response, current_payload):
+                            current_payload = self._without_tools(current_payload)
                             try:
                                 async for chunk in self._stream_payload(client, url, current_payload):
                                     yield chunk

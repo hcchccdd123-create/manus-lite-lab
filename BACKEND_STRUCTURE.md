@@ -9,7 +9,7 @@
 - `providers/`：`ollama/glm/codex` 统一抽象与实现
 - `memory/`：上下文拼装、摘要策略与摘要执行
 - `agent/`（规划）：Agent Runtime（步骤执行器、tool registry、loop guard）
-- `tools/`（规划）：工具实现与参数 schema 校验
+- `tools/`：工具实现与参数 schema 校验（当前含 `get_current_datetime`）
 
 ## 2. 数据库结构（SQLite）
 
@@ -104,6 +104,11 @@
 - `POST /api/v1/chat`
 - `POST /api/v1/chat/stream`
 
+请求关键字段（已支持）：
+- `runtime_mode`：`chat` / `agent`
+- `enable_thinking`：可选；GLM/Ollama 未传时默认开启
+- `enable_web_search`：可选；控制是否启用联网搜索工具
+
 ### Agent（规划）
 - `POST /api/v1/agent/run`（非流式，返回最终结果 + steps 摘要）
 - `POST /api/v1/agent/stream`（SSE，返回完整 reasoning loop）
@@ -126,7 +131,7 @@
 - `message.thinking`
 - `message.delta`
 - `memory.updated`（可选）
-- `message.end`
+- `message.end`（包含 `termination_reason`，如 `thinking_timeout` / `thinking_guard_triggered`）
 - `error`
 
 Agent Runtime（规划）新增事件：
@@ -140,7 +145,13 @@ Agent Runtime（规划）新增事件：
 - 可选 provider：`ollama` / `glm` / `codex`。
 - 默认 provider：`glm`。
 - 默认模型：`glm-4.7`。
-- Thinking 参数：`enable_thinking`，GLM/Ollama 路径可用。
+- Thinking 参数：`enable_thinking`，GLM/Ollama 路径可用，未传时默认开启。
+- Web Search：当前通过 GLM `tools` 透传 `web_search`，默认关闭（Agent 模式可按策略默认开启）。
+
+## 5.1 实时问题防幻觉策略（已实现）
+- 后端意图识别天气/新闻/行情等时效问题。
+- 当命中时效问题且未开启 `enable_web_search` 时，直接返回标准提示文案，不让模型自由编造。
+- 标准提示后仍保持推荐追问能力，引导用户开启联网并重试。
 
 ## 6. Agent Runtime（规划）
 - Agent 循环输出类型：`thinking` / `tool_call` / `final_answer`。
@@ -159,6 +170,14 @@ Agent Runtime（规划）新增事件：
 - 上下文：`system_prompt + latest_summary + 最近窗口消息`。
 - 达阈值触发增量摘要，写入 `memory_snapshots`。
 - 摘要失败不影响主聊天流程。
+
+## 7.1 Thinking Guard（已实现）
+- 防护维度：
+  - 字符上限：`THINKING_LOOP_MAX_CHARS`
+  - 重复检测：`THINKING_LOOP_REPEAT_WINDOW` + `THINKING_LOOP_REPEAT_THRESHOLD`
+  - 时长上限：`THINKING_LOOP_MAX_SECONDS`
+- 生效范围：GLM / Ollama。
+- 触发后行为：提前结束流式循环，返回 `termination_reason` 并输出当前可用结果。
 
 ## 8. 异常与边界
 - 会话不存在：返回 404。

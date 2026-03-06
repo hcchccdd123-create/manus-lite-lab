@@ -21,6 +21,8 @@
 - 改 UI 或交互细节：`FRONTEND_GUIDELINES.md` + `APP_FLOW.md`
 - 改接口或流式协议：`BACKEND_STRUCTURE.md` + `APP_FLOW.md`
 - 设计 Agent 推理循环与工具调用：`PRD.md` + `BACKEND_STRUCTURE.md` + `IMPLEMENTATION_PLAN.md`
+- 排查 thinking 卡住/重复与终止原因：`BACKEND_STRUCTURE.md` + `IMPLEMENTATION_PLAN.md` + `FRONTEND_GUIDELINES.md`
+- 排查联网搜索开关与意图拦截：`APP_FLOW.md` + `BACKEND_STRUCTURE.md`
 - 新功能排期：`PRD.md` + `IMPLEMENTATION_PLAN.md`
 - 环境问题排查：`TECH_STACK.md`
 

@@ -63,9 +63,11 @@ class ChatRequestIn(BaseModel):
     message: str = Field(min_length=1)
     provider: Literal['ollama', 'glm', 'codex'] | None = None
     model: str | None = None
+    runtime_mode: Literal['chat', 'agent'] = 'chat'
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int | None = Field(default=None, ge=1)
     enable_thinking: bool | None = None
+    enable_web_search: bool | None = None
 
 
 class ChatResponseOut(BaseModel):

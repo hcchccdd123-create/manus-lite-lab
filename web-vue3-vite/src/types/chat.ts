@@ -47,6 +47,7 @@ export interface StreamSession {
   parserMode: 'normal' | 'think'
   tagBuffer: string
   hasReceivedFirstChunk: boolean
+  terminationReason?: string
 }
 
 export interface PendingConversationMeta {

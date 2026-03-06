@@ -23,7 +23,8 @@ function defaultSession(conversationId: string): StreamSession {
     thinkBuffer: '',
     parserMode: 'normal',
     tagBuffer: '',
-    hasReceivedFirstChunk: false
+    hasReceivedFirstChunk: false,
+    terminationReason: ''
   }
 }
 
@@ -45,7 +46,7 @@ export const useStreamsStore = defineStore('streams', () => {
   async function startStreaming(
     conversationId: string,
     message: string,
-    options?: { enableThinking?: boolean }
+    options?: { enableThinking?: boolean; runtimeMode?: 'chat' | 'agent'; enableWebSearch?: boolean }
   ): Promise<void> {
     const chatStore = useChatStore()
     const session = getSession(conversationId)
@@ -61,6 +62,7 @@ export const useStreamsStore = defineStore('streams', () => {
     session.parserMode = 'normal'
     session.tagBuffer = ''
     session.hasReceivedFirstChunk = false
+    session.terminationReason = ''
 
     chatStore.appendUserMessage(conversationId, message)
     chatStore.beginAssistantDraft(conversationId)
@@ -75,13 +77,17 @@ export const useStreamsStore = defineStore('streams', () => {
     controllers.set(conversationId, controller)
 
     const enableThinking = options?.enableThinking ?? true
+    const runtimeMode = options?.runtimeMode ?? 'chat'
+    const enableWebSearch = options?.enableWebSearch ?? false
 
     try {
       const reader = await openChatStream(
         {
           session_id: conversationId,
           message,
-          enable_thinking: enableThinking
+          runtime_mode: runtimeMode,
+          enable_thinking: enableThinking,
+          enable_web_search: enableWebSearch
         },
         controller.signal
       )
@@ -159,10 +165,12 @@ export const useStreamsStore = defineStore('streams', () => {
         if (event.event === 'message.end') {
           let finalText = session.assistantBuffer
           let finalThinking = session.thinkBuffer
+          let terminationReason = ''
           try {
             const payload = JSON.parse(event.data)
             finalText = payload.text || finalText
             finalThinking = payload.thinking || finalThinking
+            terminationReason = payload.termination_reason || ''
           } catch {
             finalText = session.assistantBuffer
           }
@@ -177,6 +185,7 @@ export const useStreamsStore = defineStore('streams', () => {
           })
 
           session.status = 'done'
+          session.terminationReason = terminationReason
           if (!session.hasReceivedFirstChunk) {
             chatStore.dropPendingConversation(conversationId)
           }

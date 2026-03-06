@@ -50,6 +50,17 @@ Manus-lite 是一个单用户、本地优先的 AI Chat + Agent 客户端。
     - 模型在每轮输出中可返回 `thinking` / `tool_call` / `final_answer`
     - 系统根据模型输出自动执行工具，并将工具结果加入上下文后继续推理
     - 推理持续到模型输出最终结果或达到最大步数
+22. 联网搜索开关与意图识别：
+    - 输入区提供 Web Search 开关，默认关闭
+    - 后端对天气/新闻/行情等时效问题做意图识别
+    - 未开启 Web Search 时，后端直接返回“请先开启联网搜索”提示，避免幻觉
+23. Thinking 稳定性保护：
+    - `enable_thinking` 在 GLM/Ollama 默认开启（未显式关闭时）
+    - 后端开启重复/长度/时长三重 guard，防止长时间重复推理
+    - 终止时返回 `termination_reason`，前端展示可读状态
+24. 答案末尾推荐追问：
+    - 默认在答案末尾追加 3 个追问/推荐问题
+    - 问候语或极短输入不追加，避免无意义推荐
 
 ## 4. Out of Scope（明确不做）
 - 多用户登录与权限系统
@@ -163,6 +174,26 @@ Manus-lite 是一个单用户、本地优先的 AI Chat + Agent 客户端。
 - 开关位于输入框发送按钮左侧，视觉状态明确
 - 开关状态变化后，后续流式请求 `enable_thinking` 与开关一致
 - GLM 与 Ollama 都支持该开关输入；不支持时后端安全降级
+
+### Story K：我希望时效性问题在未联网时被明确拦截
+- Given 我提问“今天股市行情/今天深圳天气”这类实时问题
+- When 我没有开启 Web Search
+- Then 系统不应编造实时信息，而应提示我开启联网搜索后重试
+
+验收：
+- Web Search 默认关闭
+- 后端意图识别命中时直接返回标准提示文案（非前端猜测）
+- 提示文案后可附带推荐追问，引导用户下一步操作
+
+### Story L：我希望 Thinking 卡住时系统能自动止损
+- Given 模型 thinking 出现重复或长时间无效推理
+- When 触发重复/长度/时长 guard
+- Then 系统自动终止无效 thinking，并返回当前可用结果
+
+验收：
+- 支持 `THINKING_LOOP_MAX_CHARS`、`THINKING_LOOP_REPEAT_THRESHOLD`、`THINKING_LOOP_MAX_SECONDS`
+- `message.end` 包含 `termination_reason`
+- 前端会话头可展示“自动终止（超时/重复）”状态
 
 ## 6.1 稳健验收（必须通过）
 1. 缩略模块不挡输入：

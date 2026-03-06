@@ -62,8 +62,12 @@ DoD：
 - 生产环境变量模板完整
 - 默认 Provider 切换为 GLM（`glm-4.7`）
 - 输入区支持 Deep Thinking 开关并透传 `enable_thinking`
+- 输入区支持 Web Search 开关并透传 `enable_web_search`（默认关闭）
 - Think 缩略浮层（`70x70`）与居中放大交互稳定（含 Genie 风格开合动画）
 - 全局业务滚动条样式统一且不污染第三方组件
+- 后端对时效性问题启用联网意图识别；未开启 Web Search 时返回标准提示，避免幻觉
+- thinking loop guard 覆盖 GLM/Ollama，支持超时与重复止损并回传 `termination_reason`
+- 回答末尾推荐 3 个追问（问候语/极短输入自动跳过）
 
 ### Phase 6 - Agent Runtime 基础闭环（规划中）
 输入：现有聊天流与 provider 抽象。
@@ -95,6 +99,8 @@ DoD：
 6. 验证删除流程：hover 删除 -> 弹窗确认 -> 列表与本地数据同步
 7. Agent 用例：同一问题触发至少 1 次工具调用并返回 `final_answer`
 8. Agent 异常用例：工具超时/参数错误时，循环可恢复或标准化终止
+9. Web Search 关闭时提问“今天股市/今天天气”，后端应返回“请开启联网搜索”标准提示
+10. thinking 压测触发 guard 时，`message.end.termination_reason` 与前端状态标签一致
 
 ## 4. 测试矩阵
 
@@ -104,6 +110,7 @@ DoD：
 - pending/reveal 状态机
 - Agent loop 状态机（步进、终止、异常分支）
 - 工具参数校验与错误映射
+- 联网意图识别（命中/漏判）与非联网场景防幻觉
 
 ### 集成测试
 - 会话创建与消息落库
@@ -112,6 +119,7 @@ DoD：
 - provider 错误映射
 - Agent 工具调用链路（tool_call -> tool_result -> final_answer）
 - 达到最大步数时终止行为与返回结构
+- Web Search 开关开/关时同一问题的行为差异符合预期
 
 ### 手工冒烟
 - 草稿态居中输入
@@ -128,6 +136,7 @@ DoD：
 - Agent 推理步骤 UI 与实际事件顺序一致
 - tool_call 卡片参数展示正确，tool_result 可回看
 - Agent 终止原因（final/step_limit/error）可读
+- 触发 `thinking_timeout` / `thinking_guard_triggered` 时，顶部终止标签显示正确
 
 ## 5. 回归清单
 - 草稿态入口（刷新 + New）
@@ -143,6 +152,8 @@ DoD：
 - 业务滚动条蓝色细条 + hover 加亮；第三方组件不被污染
 - Agent 事件持久化后刷新回放正确
 - 工具异常不会导致整个会话崩溃
+- Web Search 默认关闭且可手动开启
+- 非联网时效问题不会返回编造的“实时数据”
 
 ## 6. OpenCloudOS 部署步骤（后端）
 1. 上传代码到目标目录（示例：`/opt/manus-lite-chat/app`）
@@ -166,6 +177,8 @@ DoD：
 - `AGENT_MAX_STEPS`
 - `AGENT_STEP_TIMEOUT_MS`
 - `TOOL_DEFAULT_TIMEOUT_MS`
+- `APP_TIMEZONE`
+- `THINKING_LOOP_MAX_SECONDS`
 
 ## 8. 下一轮建议
 1. 增加前端 e2e（Playwright）覆盖 Agent 可视化与工具调用链路。

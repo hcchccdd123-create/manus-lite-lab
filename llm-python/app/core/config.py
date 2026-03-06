@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     app_env: str = 'dev'
     host: str = '0.0.0.0'
     port: int = 8000
+    app_timezone: str = 'Asia/Shanghai'
 
     db_url: str = 'sqlite+aiosqlite:///./data/chat.db'
 
@@ -35,6 +36,7 @@ class Settings(BaseSettings):
     thinking_loop_max_chars: int = Field(default=12000, ge=1000, le=100000)
     thinking_loop_repeat_window: int = Field(default=14, ge=4, le=100)
     thinking_loop_repeat_threshold: int = Field(default=4, ge=2, le=20)
+    thinking_loop_max_seconds: int = Field(default=90, ge=10, le=1800)
 
     enable_provider_fallback: bool = False
     provider_timeout_seconds: int = Field(default=60, ge=1, le=300)
