@@ -1,182 +1,220 @@
-# llm-python 代码解说（Python 初学者版）
+# llm-python 代码解说（Python 初学者版，2026-03 现状）
 
-## 1. 这个项目在做什么
+## 1. 这个后端现在做什么
 
-这是一个聊天后端服务，目标是：
+`llm-python` 是一个本地优先的 AI Chat + Agent 后端，核心能力包括：
 
-- 支持会话聊天（每个会话一个 `session_id`）
-- 保存历史消息（用户和助手消息）
-- 支持多模型提供方（Ollama / GLM / Codex）
-- 支持记忆机制（最近窗口 + 摘要落库）
-- 提供 HTTP API 给前端调用
+- 会话聊天（每个会话一个 `session_id`）
+- 历史消息持久化（`user/assistant/system/tool`）
+- 多模型 Provider 抽象（`ollama / glm / codex`）
+- 记忆策略（最近窗口 + 摘要快照）
+- SSE 流式输出（`message.start/thinking/delta/end/error`）
+- Web Search 开关 + 后端意图拦截（防止未联网时编造实时信息）
+- Thinking 稳定性保护（重复/长度/时长三重 guard）
+- 答案末尾推荐追问（由模型基于回答内容动态生成）
 
 ---
 
-## 2. 先看哪几个目录
-
-建议先熟悉这些路径：
+## 2. 目录速览（建议先看）
 
 - `app/main.py`：FastAPI 启动入口
-- `app/api/routes/`：接口层（路由）
-- `app/services/`：业务层（核心逻辑）
-- `app/db/models.py`：数据库表结构
-- `app/db/repositories/`：数据库读写封装
-- `app/providers/`：不同模型的统一接入
-- `app/memory/`：上下文拼装与摘要逻辑
+- `app/api/routes/`：接口层
+- `app/services/chat_service.py`：聊天核心编排（最重要）
+- `app/services/provider_router.py`：Provider 路由与调用日志
+- `app/services/thinking_loop_guard.py`：thinking 重复检测和止损
+- `app/providers/`：各模型实现
+- `app/memory/`：记忆上下文拼装 + 摘要
+- `app/tools/datetime_tool.py`：时间工具（`get_current_datetime`）
+- `app/core/config.py`：配置项定义（`.env` 对应）
 
 ---
 
-## 3. 一次聊天请求怎么流转
+## 3. 一次流式聊天请求完整流转（重点）
 
-以 `POST /api/v1/chat` 为例：
+以 `POST /api/v1/chat/stream` 为例：
 
 1. 路由接收请求（`app/api/routes/chat.py`）
-2. 调用 `ChatService`（`app/services/chat_service.py`）
-3. 先把用户消息写入 `messages` 表
-4. 读取会话摘要 + 最近消息，拼成上下文
-5. 通过 `ProviderRouter` 调模型
-6. 把 AI 回复写回 `messages`
-7. 判断是否触发摘要，必要时写入 `memory_snapshots`
-8. 返回统一格式 JSON
+2. 参数反序列化（`ChatRequestIn`，含 `runtime_mode/enable_thinking/enable_web_search`）
+3. 进入 `ChatService.stream_message(...)`
+4. 写入用户消息到 `messages`
+5. 执行“是否需要联网”的后端意图识别
+   - 命中且未开启 Web Search：直接返回标准提示（不让模型编造）
+6. 读取摘要 + 最近消息，构建上下文
+7. 注入运行时 system 信息（当前时区时间、时间问题回答规则等）
+8. 构建 `ChatRequest`，通过 `ProviderRouter` 调用对应 Provider
+9. 边读 chunk 边 SSE 输出（thinking/delta）
+10. `ThinkingLoopGuard` 在流中实时检测：
+   - 超长
+   - 重复
+   - 超时
+11. 结束后落库 assistant 消息，并在 `message.end` 返回：
+   - `text`
+   - `thinking`
+   - `termination_reason`（如 `thinking_timeout`）
+12. 最终文本会追加“推荐追问”块（如符合条件）
 
 ---
 
-## 4. 核心数据库表（重点）
+## 4. 核心表结构（为什么这样设计）
 
 定义在 `app/db/models.py`：
 
 ### `conversations`
-
-会话主表，保存：
-
-- `id`（会话 ID）
-- `title`（会话标题）
-- `provider` / `model`（默认模型配置）
-- `status`（active/archived）
-- `system_prompt`
-- 时间字段（创建/更新/最后活跃）
+- 每个会话一条
+- 保存默认 provider/model、标题、状态、记忆参数、活跃时间
 
 ### `messages`
-
-消息表，保存每条消息：
-
-- `role`（user/assistant/system/tool）
-- `content`
-- `sequence_no`（会话内顺序）
-- `provider` / `model`（实际响应来源）
-- token 统计字段
+- 每条消息一条
+- `sequence_no` 保证会话内顺序
+- `role` 区分 user/assistant/system/tool
 
 ### `memory_snapshots`
-
-记忆摘要表，保存：
-
-- 当前摘要文本
-- 已覆盖到哪条消息（`covered_until_sequence_no`）
-- 摘要是由哪个 provider/model 生成的
+- 保存摘要文本和“已覆盖到哪条消息”
+- 让上下文不依赖全量历史，降低 token 成本
 
 ### `provider_call_logs`
-
-模型调用日志表，保存：
-
-- 请求是否成功
-- 延迟
-- 错误码/错误信息（脱敏）
+- 记录模型调用成功率、延迟、错误
+- 便于排查“模型慢/模型挂/模型限流”
 
 ---
 
-## 5. 多模型统一抽象怎么做
+## 5. Provider 抽象：为什么这么做
 
-在 `app/providers/base.py` 定义统一接口与类型：
+在 `app/providers/base.py` 定义统一数据结构：
 
 - `ChatRequest`
+  - 现在支持 `tools` 字段（用于 GLM `web_search`）
 - `ChatResponse`
 - `ChatChunk`
-- `LLMProvider` 协议（`chat` / `stream_chat` / `health_check`）
+- `LLMProvider` 协议：`chat` / `stream_chat` / `health_check`
 
-具体实现：
+好处：
 
-- `ollama_provider.py`
-- `glm_provider.py`
-- `codex_provider.py`
-
-路由选择由 `app/services/provider_router.py` 负责。
+- 上层 `ChatService` 不关心底层是 GLM 还是 Ollama
+- 业务只拼一次请求，Provider 负责适配具体 API 格式
 
 ---
 
-## 6. 记忆机制怎么实现
+## 6. 你最近新增的关键能力（代码对应）
+
+### 6.1 Web Search 开关 + 后端意图拦截
 
 相关文件：
+
+- `app/api/schemas.py`（新增 `enable_web_search`）
+- `app/services/chat_service.py`（意图识别 + 未联网拦截）
+- `app/providers/glm_provider.py`（透传 `tools.web_search`）
+
+逻辑要点：
+
+- Web Search 默认关闭（前端开关控制）
+- 后端识别“实时问题”（天气/新闻/行情等）
+- 若未开启联网，直接返回提示：
+  - “请先开启 Web Search”
+- 防止模型凭记忆“编出今天行情”
+
+### 6.2 Thinking 默认开启 + 三重止损
+
+相关文件：
+
+- `app/services/chat_service.py`
+- `app/services/thinking_loop_guard.py`
+- `app/core/config.py`
+
+逻辑要点：
+
+- `enable_thinking` 未传时，GLM/Ollama 默认开启
+- Guard 维度：
+  - `THINKING_LOOP_MAX_CHARS`
+  - `THINKING_LOOP_REPEAT_WINDOW` + `THINKING_LOOP_REPEAT_THRESHOLD`
+  - `THINKING_LOOP_MAX_SECONDS`
+- 触发后会提前终止无效推理，并回传 `termination_reason`
+
+### 6.3 动态推荐追问（不再死模板）
+
+相关文件：
+
+- `app/services/chat_service.py`
+
+逻辑要点：
+
+- 主回答生成后，再调用一次模型生成 3 个追问（JSON 格式）
+- 追问内容基于“用户问题 + 主回答”动态生成
+- 失败时回退到兜底模板
+- 问候语/极短输入不追加追问
+
+---
+
+## 7. 记忆系统（window + summary）怎么协作
+
+核心文件：
 
 - `app/memory/context_builder.py`
 - `app/memory/summarizer.py`
 - `app/services/chat_service.py`
 
-机制：
+流程：
 
-- 每次只带最近 N 条消息（避免上下文太大）
-- 达到阈值后把“未摘要消息”压缩成摘要
-- 摘要写入 `memory_snapshots`
-- 下一轮请求把“摘要 + 最近窗口”一起喂给模型
+1. 每轮只取最近窗口消息（避免超上下文）
+2. 超过阈值后把“未摘要区间”做增量摘要
+3. 摘要写入 `memory_snapshots`
+4. 下轮上下文 = `system_prompt + summary + recent_messages`
 
-这就是“低成本保留长期记忆”的核心思路。
-
----
-
-## 7. API 快速索引
-
-在 `app/api/routes/`：
-
-- `health.py`
-  - `GET /api/v1/health`
-- `conversations.py`
-  - `POST /api/v1/conversations`
-  - `GET /api/v1/conversations`
-  - `GET /api/v1/conversations/{session_id}`
-  - `PATCH /api/v1/conversations/{session_id}`
-  - `DELETE /api/v1/conversations/{session_id}`（软删除）
-  - `GET /api/v1/conversations/{session_id}/messages`
-- `chat.py`
-  - `POST /api/v1/chat`
-  - `POST /api/v1/chat/stream`（SSE）
+这样既保留长期语义，又可控成本。
 
 ---
 
-## 8. 初学者建议的阅读顺序
+## 8. API 快速索引（当前可用）
 
-1. `app/main.py`（知道项目如何启动）
-2. `app/api/routes/chat.py`（看接口如何进 service）
-3. `app/services/chat_service.py`（看核心业务闭环）
-4. `app/db/models.py`（理解数据结构）
-5. `app/providers/base.py`（理解抽象）
-6. `app/services/provider_router.py`（理解多模型路由）
+- `GET /api/v1/health`
+- `POST /api/v1/conversations`
+- `GET /api/v1/conversations`
+- `GET /api/v1/conversations/{session_id}`
+- `PATCH /api/v1/conversations/{session_id}`
+- `DELETE /api/v1/conversations/{session_id}`（软删）
+- `GET /api/v1/conversations/{session_id}/messages`
+- `POST /api/v1/chat`
+- `POST /api/v1/chat/stream`
 
----
+`/chat` & `/chat/stream` 常用参数：
 
-## 9. 常见问题（学习向）
-
-### 为什么分层这么多？
-
-因为要把职责拆开：
-
-- route 只处理 HTTP
-- service 处理业务流程
-- repository 处理数据读写
-- provider 处理外部模型调用
-
-### 为什么不直接把全部历史都传给模型？
-
-会很贵、很慢，还容易超过上下文限制。所以用“窗口 + 摘要”。
-
-### SQLite 够吗？
-
-当前阶段（单机/开发）够用；以后多用户再换 PostgreSQL。
+- `runtime_mode`: `chat` / `agent`
+- `enable_thinking`: 是否开启 thinking（GLM/Ollama 默认 true）
+- `enable_web_search`: 是否允许联网搜索
 
 ---
 
-## 10. 你可以立刻做的 3 个练习
+## 9. 新同学阅读顺序（推荐）
 
-1. 给 `conversations` 增加 `topic` 字段并打通接口返回
-2. 给聊天接口增加一个参数并传到 provider（如 `temperature`）
-3. 新增接口：返回某会话的最新摘要
+1. `app/main.py`（入口）
+2. `app/api/routes/chat.py`（HTTP -> Service）
+3. `app/services/chat_service.py`（主流程）
+4. `app/providers/base.py` + `app/providers/glm_provider.py`（Provider 适配）
+5. `app/services/provider_router.py`（路由和日志）
+6. `app/services/thinking_loop_guard.py`（止损机制）
+7. `app/memory/`（上下文和摘要）
+8. `app/db/models.py`（数据结构）
 
-这 3 个练习能帮你快速理解模型、业务层、数据库三者的关系。
+---
+
+## 10. 常见问题（按当前代码回答）
+
+### Q1：为什么“今天股市行情”有时会被拦截？
+
+因为系统判断这是时效问题，未开启 Web Search 会强制拦截，避免幻觉。
+
+### Q2：为什么会出现“thinking 自动终止”？
+
+因为触发了 guard（超时/重复/过长），系统主动止损，保护响应时延和稳定性。
+
+### Q3：为什么推荐追问有时没有？
+
+问候语或极短输入会被过滤，不追加追问是故意设计。
+
+---
+
+## 11. 三个实战练习（适合继续深入）
+
+1. 给时效意图识别增加“白名单/黑名单配置化”（从代码常量改为 `.env` 或独立配置）
+2. 为 `termination_reason` 增加统计接口（看哪类终止最常见）
+3. 给追问生成加缓存（相同问答短时间内复用，降低二次调用成本）
