@@ -1,7 +1,17 @@
 # PRD.md
 
 ## 1. 产品定位
-Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
+Manus-lite 是一个单用户、本地优先的 AI Chat + Agent 客户端。
+
+在传统聊天能力基础上，系统支持 Agent Runtime，允许模型在对话过程中自动判断是否调用工具、继续推理或输出最终结果。Agent 能够在多轮推理循环中完成复杂任务。
+
+核心关键词：
+- Chat
+- Agent
+- Tools
+- Reasoning Loop
+
+系统形态：
 - 后端：Python + FastAPI，负责会话、消息、Provider 调度、记忆摘要、SSE
 - 前端：Vue3 + Vite，负责会话 UI、流式展示、Think 展示、本地持久化
 
@@ -10,6 +20,8 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 ## 2. 目标用户
 - 个人开发者
 - AI 应用学习者
+- AI Agent 应用开发者
+- 需要测试模型工具调用能力的用户
 - 需要 GLM 云模型优先、并可扩展本地 Ollama/其他模型的用户
 
 ## 3. In Scope（当前范围）
@@ -33,6 +45,11 @@ Manus-lite 是一个单用户、本地优先的会话式 AI 客户端：
 18. 全局业务滚动区滚动条统一为高对比蓝色细条，悬停加亮
 19. 输入框发送按钮左侧提供“深度思考”开关（控制 `enable_thinking`）
 20. `message-scroll` 支持“自动滚底 / 手动暂停 / 一键恢复并滚底”
+21. Agent Runtime：
+    - 系统支持 Agent 推理循环
+    - 模型在每轮输出中可返回 `thinking` / `tool_call` / `final_answer`
+    - 系统根据模型输出自动执行工具，并将工具结果加入上下文后继续推理
+    - 推理持续到模型输出最终结果或达到最大步数
 
 ## 4. Out of Scope（明确不做）
 - 多用户登录与权限系统

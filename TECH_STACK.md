@@ -63,18 +63,25 @@
 ## 4. 模型与 Provider
 - 本地推理：Ollama
 - Ollama Base URL: `http://127.0.0.1:11434`
-- 默认模型：`qwen3.5:0.8b`
+- 默认模型：`glm-4.7`
 - Provider 抽象：`ollama` / `glm` / `codex`
-- Thinking: 默认在 Ollama 路径启用（通过请求参数控制）
+- Thinking: GLM / Ollama 路径均可通过请求参数控制
 
-## 5. 存储与数据
+## 5. Agent Runtime（规划能力）
+- Runtime 形态：Chat + Agent 双模式
+- 推理循环：`thinking -> tool_call -> tool_result -> final_answer`
+- 工具层：统一 Tool Registry + 参数 Schema 校验 + 超时控制
+- 可观测性：支持 step 级事件流与日志持久化（用于调试和回放）
+
+## 6. 存储与数据
 - 后端数据库：SQLite（`sqlite+aiosqlite:///./data/chat.db`）
 - 前端持久化：IndexedDB（`conversations` / `messages` / `think_states`）
+- Agent 持久化（规划）：`agent_steps`（后端）+ `agent_events`（前端 IndexedDB）
 
-## 6. 版本约束规则
+## 7. 版本约束规则
 - 文档必须记录明确版本，不写 “latest/stable”。
 - 升级依赖时，同步更新本文件与 lock 文件。
 - 前端以 `package-lock.json` 为实际安装基准，后端以 `.venv` 实装版本为运行基准。
 
 ---
-Last updated from codebase on 2026-03-05
+Last updated from codebase on 2026-03-06

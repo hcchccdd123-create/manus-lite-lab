@@ -6,6 +6,7 @@
 - Think 独立展示
 - 草稿态 + 延迟入历史
 - 可部署到 OpenCloudOS
+- 具备可扩展的 Agent Runtime（Reasoning Loop + Tools）
 
 ## 2. 分阶段执行（状态）
 
@@ -64,6 +65,27 @@ DoD：
 - Think 缩略浮层（`70x70`）与居中放大交互稳定（含 Genie 风格开合动画）
 - 全局业务滚动条样式统一且不污染第三方组件
 
+### Phase 6 - Agent Runtime 基础闭环（规划中）
+输入：现有聊天流与 provider 抽象。
+输出：支持模型在一次会话中进行多步推理与工具调用。
+DoD：
+- 新增 Agent Loop 执行器，支持 `thinking -> tool_call -> tool_result -> ... -> final_answer`
+- 每轮推理具备统一步号（`step_no`）与最大步数限制（`max_steps`）
+- 工具调用支持最小可用工具集（如 `web_search`、`calculator`、`fetch_url`）及统一超时/错误处理
+- Tool Result 注入上下文后自动继续下一轮推理
+- 超过最大步数时返回标准化终止结果（含终止原因）
+- SSE 新增可观测事件：`agent.step`、`agent.tool_call`、`agent.tool_result`、`agent.final`
+
+### Phase 7 - 前端 Agent 可视化与调试体验（规划中）
+输入：Agent Runtime 后端闭环。
+输出：前端可理解并展示 Agent 执行过程。
+DoD：
+- 消息区支持 Agent 步骤流展示（thinking/tool_call/tool_result/final_answer）
+- Tool Call 卡片展示工具名、参数、耗时、状态（success/error/timeout）
+- Agent 推理中支持“进行中”状态提示与结束态汇总
+- 在不破坏原有 Chat 体验的前提下，支持隐藏/展开 Agent 细节
+- IndexedDB 增加 Agent 事件持久化，刷新后可回放
+
 ## 3. 联调执行清单
 1. 启动后端：`cd llm-python && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
 2. 启动前端：`cd web-vue3-vite && npm run dev`
@@ -71,6 +93,8 @@ DoD：
 4. 草稿态发送首问，确认“首条流内容后才入左栏”
 5. 并发测试：A 流式中切到 B 并发发送
 6. 验证删除流程：hover 删除 -> 弹窗确认 -> 列表与本地数据同步
+7. Agent 用例：同一问题触发至少 1 次工具调用并返回 `final_answer`
+8. Agent 异常用例：工具超时/参数错误时，循环可恢复或标准化终止
 
 ## 4. 测试矩阵
 
@@ -78,12 +102,16 @@ DoD：
 - SSE 解析（LF/CRLF 边界）
 - think 解析状态机
 - pending/reveal 状态机
+- Agent loop 状态机（步进、终止、异常分支）
+- 工具参数校验与错误映射
 
 ### 集成测试
 - 会话创建与消息落库
 - 流式事件顺序
 - 摘要触发与快照写入
 - provider 错误映射
+- Agent 工具调用链路（tool_call -> tool_result -> final_answer）
+- 达到最大步数时终止行为与返回结构
 
 ### 手工冒烟
 - 草稿态居中输入
@@ -97,6 +125,9 @@ DoD：
 - Deep Thinking 开关状态变化后，stream payload `enable_thinking` 同步
 - 移动端输入框左侧 Think 入口可用
 - 滚动条 hover/active 反馈与跨浏览器一致性
+- Agent 推理步骤 UI 与实际事件顺序一致
+- tool_call 卡片参数展示正确，tool_result 可回看
+- Agent 终止原因（final/step_limit/error）可读
 
 ## 5. 回归清单
 - 草稿态入口（刷新 + New）
@@ -110,6 +141,8 @@ DoD：
 - `message-scroll` `padding-bottom: 80px` 生效
 - `message-scroll` 自动滚底暂停/恢复逻辑正确
 - 业务滚动条蓝色细条 + hover 加亮；第三方组件不被污染
+- Agent 事件持久化后刷新回放正确
+- 工具异常不会导致整个会话崩溃
 
 ## 6. OpenCloudOS 部署步骤（后端）
 1. 上传代码到目标目录（示例：`/opt/manus-lite-chat/app`）
@@ -129,11 +162,15 @@ DoD：
 - `MEMORY_WINDOW_SIZE`
 - `SUMMARY_TRIGGER_MESSAGES`
 - `ENABLE_PROVIDER_FALLBACK`
+- `AGENT_ENABLED`
+- `AGENT_MAX_STEPS`
+- `AGENT_STEP_TIMEOUT_MS`
+- `TOOL_DEFAULT_TIMEOUT_MS`
 
 ## 8. 下一轮建议
-1. 增加前端 e2e（Playwright）覆盖 pending/reveal 与并发流式。
-2. 增加流式断开重试策略（可配置次数与退避）。
-3. 对 `provider_call_logs` 增加前端可观测页面（调试态）。
+1. 增加前端 e2e（Playwright）覆盖 Agent 可视化与工具调用链路。
+2. 为 Agent Runtime 增加工具沙箱与权限白名单（按环境配置）。
+3. 对 `provider_call_logs` + Agent step logs 增加可观测页面（调试态）。
 
 ---
 Last updated from codebase on 2026-03-06
