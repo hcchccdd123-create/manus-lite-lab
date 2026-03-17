@@ -46,7 +46,7 @@ export const useStreamsStore = defineStore('streams', () => {
   async function startStreaming(
     conversationId: string,
     message: string,
-    options?: { enableThinking?: boolean; runtimeMode?: 'chat' | 'agent'; enableWebSearch?: boolean }
+    options?: { enableThinking?: boolean }
   ): Promise<void> {
     const chatStore = useChatStore()
     const session = getSession(conversationId)
@@ -77,17 +77,13 @@ export const useStreamsStore = defineStore('streams', () => {
     controllers.set(conversationId, controller)
 
     const enableThinking = options?.enableThinking ?? true
-    const runtimeMode = options?.runtimeMode ?? 'chat'
-    const enableWebSearch = options?.enableWebSearch ?? false
 
     try {
       const reader = await openChatStream(
         {
           session_id: conversationId,
           message,
-          runtime_mode: runtimeMode,
           enable_thinking: enableThinking,
-          enable_web_search: enableWebSearch
         },
         controller.signal
       )

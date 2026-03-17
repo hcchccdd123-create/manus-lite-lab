@@ -15,8 +15,6 @@ const { uiMode, activeConversation, activeConversationId, activeMessages, active
 const input = ref('')
 const isThinkExpanded = ref(false)
 const deepThinkingEnabled = ref(true)
-const runtimeMode = ref<'chat' | 'agent'>('chat')
-const webSearchEnabled = ref(false)
 const lastRequestAt = ref<string>('')
 const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 const isDev = import.meta.env.DEV
@@ -82,9 +80,7 @@ async function sendMessage() {
   input.value = ''
   lastRequestAt.value = new Date().toISOString()
   void streamsStore.startStreaming(target, text, {
-    enableThinking: deepThinkingEnabled.value,
-    runtimeMode: runtimeMode.value,
-    enableWebSearch: webSearchEnabled.value
+    enableThinking: deepThinkingEnabled.value
   })
   await nextTick()
   messageAutoScrollEnabled.value = true
@@ -104,14 +100,6 @@ function closeThinkPanel() {
 
 function toggleDeepThinking(nextValue: boolean) {
   deepThinkingEnabled.value = nextValue
-}
-
-function toggleRuntimeMode(nextMode: 'chat' | 'agent') {
-  runtimeMode.value = nextMode
-}
-
-function toggleWebSearch(nextValue: boolean) {
-  webSearchEnabled.value = nextValue
 }
 
 function onMessageScroll() {
@@ -166,8 +154,6 @@ onBeforeUnmount(() => {
       <div class="chat-header-main">
         <h2>{{ activeConversation?.title || 'New conversation' }}</h2>
         <div v-if="isDev" class="dev-runtime-baseline">
-          <span>Runtime: {{ runtimeMode }}</span>
-          <span>Web Search: {{ webSearchEnabled ? 'on' : 'off' }}</span>
           <span>Timezone: {{ localTimezone }}</span>
           <span v-if="debugRequestBaseline">Last request: {{ debugRequestBaseline }}</span>
         </div>
@@ -182,11 +168,7 @@ onBeforeUnmount(() => {
           v-model="input"
           :disabled="false"
           :deep-thinking-enabled="deepThinkingEnabled"
-          :runtime-mode="runtimeMode"
-          :web-search-enabled="webSearchEnabled"
           @toggle-deep-thinking="toggleDeepThinking"
-          @toggle-runtime-mode="toggleRuntimeMode"
-          @toggle-web-search="toggleWebSearch"
           @submit="sendMessage"
         />
       </div>
@@ -231,11 +213,7 @@ onBeforeUnmount(() => {
           v-model="input"
           :disabled="false"
           :deep-thinking-enabled="deepThinkingEnabled"
-          :runtime-mode="runtimeMode"
-          :web-search-enabled="webSearchEnabled"
           @toggle-deep-thinking="toggleDeepThinking"
-          @toggle-runtime-mode="toggleRuntimeMode"
-          @toggle-web-search="toggleWebSearch"
           @submit="sendMessage"
         />
         <ThinkPanel

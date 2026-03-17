@@ -21,8 +21,8 @@ Default backend URL is `http://127.0.0.1:8000`.
 - Draft mode + delayed reveal into conversation history
 - Auto-follow message scrolling with manual pause/resume
 
-## Next milestone (Agent Runtime UI)
+## Current UI shape
 
-- Add Chat/Agent runtime switch in composer area
-- Visualize step events: `thinking`, `tool_call`, `tool_result`, `final_answer`
-- Persist agent step events in local storage for refresh replay
+- Composer keeps message input, send button, and Deep Thinking toggle
+- Web search is handled automatically by the backend for supported models
+- Current runtime is chat-only

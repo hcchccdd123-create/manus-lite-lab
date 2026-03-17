@@ -6,7 +6,7 @@
 - Think 独立展示
 - 草稿态 + 延迟入历史
 - 可部署到 OpenCloudOS
-- 具备可扩展的 Agent Runtime（Reasoning Loop + Tools）
+- 收口为 Chat-only + 自动联网搜索
 
 ## 2. 分阶段执行（状态）
 
@@ -20,10 +20,10 @@ DoD：
 
 ### Phase 1 - 后端聊天闭环（已完成）
 输入：FastAPI + SQLite。
-输出：会话、消息、非流/流式聊天闭环。
+输出：会话、消息、流式聊天闭环。
 DoD：
 - 会话 CRUD 可用
-- `/chat` 与 `/chat/stream` 可用
+- `/chat/stream` 可用
 - 消息持久化可回放
 
 ### Phase 2 - 前端基础会话体验（已完成）
@@ -62,33 +62,12 @@ DoD：
 - 生产环境变量模板完整
 - 默认 Provider 切换为 GLM（`glm-4.7`）
 - 输入区支持 Deep Thinking 开关并透传 `enable_thinking`
-- 输入区支持 Web Search 开关并透传 `enable_web_search`（默认关闭）
+- 前端移除 Runtime / Web Search 控制面，仅保留 chat + Deep Thinking
 - Think 缩略浮层（`70x70`）与居中放大交互稳定（含 Genie 风格开合动画）
 - 全局业务滚动条样式统一且不污染第三方组件
-- 后端对时效性问题启用联网意图识别；未开启 Web Search 时返回标准提示，避免幻觉
+- 支持联网搜索的模型自动获得 Web Search 能力；不支持的模型命中时效问题时返回标准提示，避免幻觉
 - thinking loop guard 覆盖 GLM/Ollama，支持超时与重复止损并回传 `termination_reason`
 - 回答末尾推荐 3 个追问（问候语/极短输入自动跳过）
-
-### Phase 6 - Agent Runtime 基础闭环（规划中）
-输入：现有聊天流与 provider 抽象。
-输出：支持模型在一次会话中进行多步推理与工具调用。
-DoD：
-- 新增 Agent Loop 执行器，支持 `thinking -> tool_call -> tool_result -> ... -> final_answer`
-- 每轮推理具备统一步号（`step_no`）与最大步数限制（`max_steps`）
-- 工具调用支持最小可用工具集（如 `web_search`、`calculator`、`fetch_url`）及统一超时/错误处理
-- Tool Result 注入上下文后自动继续下一轮推理
-- 超过最大步数时返回标准化终止结果（含终止原因）
-- SSE 新增可观测事件：`agent.step`、`agent.tool_call`、`agent.tool_result`、`agent.final`
-
-### Phase 7 - 前端 Agent 可视化与调试体验（规划中）
-输入：Agent Runtime 后端闭环。
-输出：前端可理解并展示 Agent 执行过程。
-DoD：
-- 消息区支持 Agent 步骤流展示（thinking/tool_call/tool_result/final_answer）
-- Tool Call 卡片展示工具名、参数、耗时、状态（success/error/timeout）
-- Agent 推理中支持“进行中”状态提示与结束态汇总
-- 在不破坏原有 Chat 体验的前提下，支持隐藏/展开 Agent 细节
-- IndexedDB 增加 Agent 事件持久化，刷新后可回放
 
 ## 3. 联调执行清单
 1. 启动后端：`cd llm-python && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
@@ -97,10 +76,9 @@ DoD：
 4. 草稿态发送首问，确认“首条流内容后才入左栏”
 5. 并发测试：A 流式中切到 B 并发发送
 6. 验证删除流程：hover 删除 -> 弹窗确认 -> 列表与本地数据同步
-7. Agent 用例：同一问题触发至少 1 次工具调用并返回 `final_answer`
-8. Agent 异常用例：工具超时/参数错误时，循环可恢复或标准化终止
-9. Web Search 关闭时提问“今天股市/今天天气”，后端应返回“请开启联网搜索”标准提示
-10. thinking 压测触发 guard 时，`message.end.termination_reason` 与前端状态标签一致
+7. GLM 时效问题验证自动联网能力可用
+8. Ollama/Codex 提问“今天股市/今天天气”时，后端应返回“不支持联网搜索”标准提示
+9. thinking 压测触发 guard 时，`message.end.termination_reason` 与前端状态标签一致
 
 ## 4. 测试矩阵
 
@@ -108,18 +86,15 @@ DoD：
 - SSE 解析（LF/CRLF 边界）
 - think 解析状态机
 - pending/reveal 状态机
-- Agent loop 状态机（步进、终止、异常分支）
-- 工具参数校验与错误映射
-- 联网意图识别（命中/漏判）与非联网场景防幻觉
+- 联网意图识别（命中/漏判）与非联网 provider 防幻觉
 
 ### 集成测试
 - 会话创建与消息落库
 - 流式事件顺序
 - 摘要触发与快照写入
 - provider 错误映射
-- Agent 工具调用链路（tool_call -> tool_result -> final_answer）
-- 达到最大步数时终止行为与返回结构
-- Web Search 开关开/关时同一问题的行为差异符合预期
+- 支持联网搜索的 provider 自动注入 Web Search tools
+- 不支持联网搜索的 provider 命中时效问题时返回提示并结束
 
 ### 手工冒烟
 - 草稿态居中输入
@@ -133,9 +108,8 @@ DoD：
 - Deep Thinking 开关状态变化后，stream payload `enable_thinking` 同步
 - 移动端输入框左侧 Think 入口可用
 - 滚动条 hover/active 反馈与跨浏览器一致性
-- Agent 推理步骤 UI 与实际事件顺序一致
-- tool_call 卡片参数展示正确，tool_result 可回看
-- Agent 终止原因（final/step_limit/error）可读
+- 不再显示 Runtime / Web Search 控制按钮
+- 不支持联网搜索的提示按普通 assistant 消息展示
 - 触发 `thinking_timeout` / `thinking_guard_triggered` 时，顶部终止标签显示正确
 
 ## 5. 回归清单
@@ -150,10 +124,7 @@ DoD：
 - `message-scroll` `padding-bottom: 80px` 生效
 - `message-scroll` 自动滚底暂停/恢复逻辑正确
 - 业务滚动条蓝色细条 + hover 加亮；第三方组件不被污染
-- Agent 事件持久化后刷新回放正确
-- 工具异常不会导致整个会话崩溃
-- Web Search 默认关闭且可手动开启
-- 非联网时效问题不会返回编造的“实时数据”
+- 非联网 provider 的时效问题不会返回编造的“实时数据”
 
 ## 6. OpenCloudOS 部署步骤（后端）
 1. 上传代码到目标目录（示例：`/opt/manus-lite-chat/app`）
@@ -173,17 +144,8 @@ DoD：
 - `MEMORY_WINDOW_SIZE`
 - `SUMMARY_TRIGGER_MESSAGES`
 - `ENABLE_PROVIDER_FALLBACK`
-- `AGENT_ENABLED`
-- `AGENT_MAX_STEPS`
-- `AGENT_STEP_TIMEOUT_MS`
-- `TOOL_DEFAULT_TIMEOUT_MS`
 - `APP_TIMEZONE`
 - `THINKING_LOOP_MAX_SECONDS`
-
-## 8. 下一轮建议
-1. 增加前端 e2e（Playwright）覆盖 Agent 可视化与工具调用链路。
-2. 为 Agent Runtime 增加工具沙箱与权限白名单（按环境配置）。
-3. 对 `provider_call_logs` + Agent step logs 增加可观测页面（调试态）。
 
 ---
 Last updated from codebase on 2026-03-06

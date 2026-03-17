@@ -118,19 +118,20 @@
 - 前后端参数一致，状态不丢失。
 - `enable_thinking` 未传时，后端默认开启（GLM/Ollama）。
 
-### Flow F.2: Web Search 开关与后端意图拦截
+### Flow F.2: 自动联网搜索与能力兜底
 触发条件：用户提问可能依赖实时信息（如天气/新闻/行情）。
 
 步骤：
-1. 输入区 `Web` 开关默认关闭，用户可手动开启。
-2. 发送请求时携带 `enable_web_search`（true/false）。
-3. 后端进行意图识别：
-   - 若命中“实时网络查询”且未开启 Web Search，直接返回标准提示，不调用模型自由生成。
-   - 若已开启 Web Search，则按 provider 能力（GLM）注入 `web_search` 工具继续回答。
+1. 前端仅发送消息内容与基础推理参数，不提供 Web Search 开关。
+2. 后端按 provider 能力决定是否自动注入 `web_search` 工具。
+3. 对支持联网搜索的模型，Web Search 默认可用，由模型自行决定是否调用。
+4. 对不支持联网搜索的模型，后端进行时效问题识别：
+   - 若命中“实时网络查询”，直接返回标准提示，不调用模型自由生成。
+   - 若未命中，则按普通对话继续回答。
 
 成功结果：
-- 未联网时不会编造实时信息。
-- 已联网时可基于搜索结果回答时效问题。
+- 支持联网的模型可自动基于搜索结果回答时效问题。
+- 不支持联网的模型不会编造实时信息。
 
 ### Flow G: Think 缩略与放大
 触发条件：当前会话存在 think 内容。
@@ -152,25 +153,16 @@
 成功结果：
 - 保持 think 快速预览能力，同时不遮挡输入与消息阅读。
 
-### Flow H: Agent Runtime 推理循环（新增规划）
-触发条件：用户发送需要工具协作的复杂问题，且本轮开启 Agent Runtime。
+### Flow H: Chat-only Runtime
+触发条件：用户发送任意消息。
 
 步骤：
-1. 前端发起流式请求并声明 Agent 模式（建议字段：`runtime_mode=agent`）。
-2. 后端进入 Agent Loop，先返回 `thinking`（可选）。
-3. 当模型返回 `tool_call` 时，后端执行对应工具并产出 `tool_result`。
-4. 工具结果注入上下文，模型继续下一轮推理。
-5. 循环直到模型返回 `final_answer` 或达到最大步数。
-6. 前端按步骤渲染 Agent 过程卡片，并在结束时展示最终答案。
+1. 前端发起 `POST /api/v1/chat/stream`。
+2. 后端统一按 chat 模式构建上下文、处理 thinking 与联网能力。
+3. 前端仅渲染标准 chat 流与 think 内容，不展示 agent 步骤流。
 
 成功结果：
-- 用户可感知“模型思考 -> 调工具 -> 继续推理 -> 最终回答”的完整链路。
-- 工具调用失败时也能看到可追踪的错误结果，而非静默失败。
-
-失败处理：
-- 工具超时/参数错误：显示 `tool_result(error)` 并由后端决定继续或终止。
-- 达到步数上限：显示标准终止原因（例如 `step_limit_reached`）。
-- thinking 超时或重复触发 guard：显示标准终止原因（`thinking_timeout` / `thinking_guard_triggered`）。
+- 当前版本交互面与接口面保持单一 chat 语义，避免多模式分叉。
 
 ## 3. 决策点
 - 当前是否为草稿态。
@@ -179,9 +171,7 @@
 - SSE 事件类型分支（start/thinking/delta/end/error）。
 - 本地是否已有该会话历史消息缓存。
 - 当前是否移动端（决定缩略模块或输入区入口按钮）。
-- 当前是否开启 Agent Runtime（chat 模式 vs agent 模式）。
-- Agent 当前 step_type（thinking/tool_call/tool_result/final_answer）。
-- 是否达到 `max_steps` / 超时阈值（决定继续或终止）。
+- 当前 provider 是否支持自动联网搜索。
 
 ## 4. 异常分支
 - CORS/网络失败：请求报错，保留当前 UI，不崩溃。
@@ -189,7 +179,6 @@
 - 会话不存在：聊天接口 404。
 - SSE 中断：当前会话置 error/done，不自动续传（用户可重发）。
 - 缩略层误拦截点击：视为 P1 回归，必须修复 pointer-events 命中区。
-- Agent 工具不可用：回传结构化错误，UI 需展示并保留最终会话可读性。
 
 ---
 Last updated from codebase on 2026-03-06

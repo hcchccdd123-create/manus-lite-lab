@@ -55,20 +55,11 @@
 - 草稿态：右侧空白 + 输入框垂直居中。
 - 会话态：消息区 + 底部输入框 + 缩略 Think 浮层（桌面）。
 - 消息区支持自动滚底；用户手动上滚后暂停，并显示“恢复自动滚底”圆形悬浮按钮。
-- Agent 模式下支持步骤流可视化：`thinking` / `tool_call` / `tool_result` / `final_answer`。
 
 ### Composer
 - 输入框内右下角圆形发送按钮（上箭头图标）。
 - 发送按钮左侧提供“深度思考”开关按钮（高亮表示开启）。
-- 提供 `Chat / Agent` 运行模式切换按钮，状态可见。
-- 提供 `Web` 联网搜索开关，默认关闭。
 - Enter 发送，Shift+Enter 换行。
-
-### AgentStepCard（新增规划）
-- 展示字段：`step_no`、`step_type`、时间/耗时、状态（running/success/error）。
-- `tool_call` 卡片展示工具名与参数（支持折叠 JSON 视图）。
-- `tool_result` 卡片展示结果摘要与错误信息（若有）。
-- `final_answer` 仍以 assistant 消息样式落地，避免阅读割裂。
 
 ### ThinkPanel
 - Think 基准内容尺寸：`400x400`。
@@ -84,7 +75,6 @@
 
 ## 5. 关键交互规范
 - 默认新会话使用 `provider=glm`、`model=glm-4.7`。
-- 支持 `runtime_mode` 概念：`chat`（默认）/`agent`（新增）。
 - `+ New` 只进入草稿态，不立即创建历史会话项。
 - 首发后 pending 会话仅在收到第一条流内容时进入左栏。
 - 标题规则：首问 `trim + 压缩空白 + 前 20 字`。
@@ -95,10 +85,7 @@
 - `message-scroll` 默认自动滚底；用户手动上滚后暂停自动滚底。
 - 暂停期间消息区右下角显示恢复按钮，点击后恢复自动滚底并滚到底部。
 - Deep Thinking 开关状态要透传到 `/api/v1/chat/stream` 的 `enable_thinking` 字段。
-- `Web` 开关状态要透传到 `/api/v1/chat/stream` 的 `enable_web_search` 字段。
-- 联网意图识别由后端处理；前端不做“是否需要联网”的业务判定。
-- Agent 模式请求需透传 `max_steps`（若前端可配置）并回显当前执行步数。
-- Agent 步骤事件与最终答案要同时持久化，刷新后可回放。
+- 联网意图识别与 Web Search 能力选择由后端处理；前端不提供“是否联网”的业务判定或开关。
 
 ## 6. 滚动条规范
 - 覆盖业务滚动容器：会话列表、消息区、think 缩略内容、think 放大区内容、业务 markdown code block。

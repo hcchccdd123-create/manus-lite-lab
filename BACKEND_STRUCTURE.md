@@ -8,7 +8,6 @@
 - `db/`：SQLAlchemy 模型、会话管理、仓储层
 - `providers/`：`ollama/glm/codex` 统一抽象与实现
 - `memory/`：上下文拼装、摘要策略与摘要执行
-- `agent/`（规划）：Agent Runtime（步骤执行器、tool registry、loop guard）
 - `tools/`：工具实现与参数 schema 校验（当前含 `get_current_datetime`）
 
 ## 2. 数据库结构（SQLite）
@@ -101,18 +100,11 @@
 - `GET /api/v1/conversations/{session_id}/messages`
 
 ### 聊天
-- `POST /api/v1/chat`
 - `POST /api/v1/chat/stream`
 
 请求关键字段（已支持）：
-- `runtime_mode`：`chat` / `agent`
 - `enable_thinking`：可选；GLM/Ollama 未传时默认开启
-- `enable_web_search`：可选；控制是否启用联网搜索工具
-
-### Agent（规划）
-- `POST /api/v1/agent/run`（非流式，返回最终结果 + steps 摘要）
-- `POST /api/v1/agent/stream`（SSE，返回完整 reasoning loop）
-- `GET /api/v1/conversations/{session_id}/agent-steps`
+- 其余聊天请求字段保持会话、provider、model 与生成参数
 
 ### 健康检查
 - `GET /api/v1/health`
@@ -134,36 +126,18 @@
 - `message.end`（包含 `termination_reason`，如 `thinking_timeout` / `thinking_guard_triggered`）
 - `error`
 
-Agent Runtime（规划）新增事件：
-- `agent.step`（step_no + step_type）
-- `agent.tool_call`（工具名 + 参数）
-- `agent.tool_result`（结果 + 耗时 + 状态）
-- `agent.final`（最终答案 + 终止原因）
-
 ## 5. Provider 抽象与策略
 - 抽象类型：`ChatRequest` / `ChatResponse` / `ChatChunk`。
 - 可选 provider：`ollama` / `glm` / `codex`。
 - 默认 provider：`glm`。
 - 默认模型：`glm-4.7`。
 - Thinking 参数：`enable_thinking`，GLM/Ollama 路径可用，未传时默认开启。
-- Web Search：当前通过 GLM `tools` 透传 `web_search`，默认关闭（Agent 模式可按策略默认开启）。
+- Web Search：当前仅 GLM 通过 `tools` 透传 `web_search`，默认自动提供给支持模型，由模型自行决定是否调用。
 
 ## 5.1 实时问题防幻觉策略（已实现）
-- 后端意图识别天气/新闻/行情等时效问题。
-- 当命中时效问题且未开启 `enable_web_search` 时，直接返回标准提示文案，不让模型自由编造。
-- 标准提示后仍保持推荐追问能力，引导用户开启联网并重试。
-
-## 6. Agent Runtime（规划）
-- Agent 循环输出类型：`thinking` / `tool_call` / `final_answer`。
-- 执行流程：模型输出 `tool_call` -> 执行工具 -> 结果回注上下文 -> 模型继续推理。
-- 终止条件：
-  - 模型输出 `final_answer`
-  - 达到 `AGENT_MAX_STEPS`
-  - 超时/不可恢复错误触发安全终止
-- 保护策略：
-  - 每步超时（`AGENT_STEP_TIMEOUT_MS`）
-  - 工具超时（`TOOL_DEFAULT_TIMEOUT_MS`）
-  - 参数 schema 校验失败快速失败并写入 step log
+- 支持联网搜索的模型默认自动获得 Web Search 能力。
+- 不支持联网搜索的模型命中天气/新闻/行情等时效问题时，后端直接返回标准提示文案，不让模型自由编造。
+- 提示文案通过正常 SSE 消息流输出，不额外引入错误事件语义。
 
 ## 7. 记忆策略
 - 模式：`window_summary`。
@@ -184,8 +158,6 @@ Agent Runtime（规划）新增事件：
 - provider 错误统一映射（auth/rate-limit/timeout/unavailable）。
 - SSE 失败通过 `error` 事件回传。
 - 当前版本不做自动流式重连。
-- Agent 工具调用失败：返回 `agent.tool_result(status=error)` 并由 loop 决策继续或终止。
-- 达到最大步数：返回标准终止原因 `step_limit_reached`。
 
 ## 9. CORS 与本地联调
 允许源：

@@ -2,14 +2,14 @@
 
 ## 1. 这个后端现在做什么
 
-`llm-python` 是一个本地优先的 AI Chat + Agent 后端，核心能力包括：
+`llm-python` 是一个本地优先的 AI Chat 后端，核心能力包括：
 
 - 会话聊天（每个会话一个 `session_id`）
 - 历史消息持久化（`user/assistant/system/tool`）
 - 多模型 Provider 抽象（`ollama / glm / codex`）
 - 记忆策略（最近窗口 + 摘要快照）
 - SSE 流式输出（`message.start/thinking/delta/end/error`）
-- Web Search 开关 + 后端意图拦截（防止未联网时编造实时信息）
+- 自动 Web Search + 后端意图拦截（防止编造实时信息）
 - Thinking 稳定性保护（重复/长度/时长三重 guard）
 - 答案末尾推荐追问（由模型基于回答内容动态生成）
 
@@ -34,11 +34,12 @@
 以 `POST /api/v1/chat/stream` 为例：
 
 1. 路由接收请求（`app/api/routes/chat.py`）
-2. 参数反序列化（`ChatRequestIn`，含 `runtime_mode/enable_thinking/enable_web_search`）
+2. 参数反序列化（`ChatRequestIn`，含 `enable_thinking`）
 3. 进入 `ChatService.stream_message(...)`
 4. 写入用户消息到 `messages`
-5. 执行“是否需要联网”的后端意图识别
-   - 命中且未开启 Web Search：直接返回标准提示（不让模型编造）
+5. 执行“是否需要联网”的后端能力判断与意图识别
+   - 支持联网搜索的模型默认自动获得 Web Search 能力
+   - 不支持联网搜索且命中时效问题：直接返回标准提示（不让模型编造）
 6. 读取摘要 + 最近消息，构建上下文
 7. 注入运行时 system 信息（当前时区时间、时间问题回答规则等）
 8. 构建 `ChatRequest`，通过 `ProviderRouter` 调用对应 Provider
@@ -97,20 +98,19 @@
 
 ## 6. 你最近新增的关键能力（代码对应）
 
-### 6.1 Web Search 开关 + 后端意图拦截
+### 6.1 自动 Web Search + 后端意图拦截
 
 相关文件：
 
-- `app/api/schemas.py`（新增 `enable_web_search`）
-- `app/services/chat_service.py`（意图识别 + 未联网拦截）
+- `app/services/chat_service.py`（意图识别 + 非联网 provider 拦截）
 - `app/providers/glm_provider.py`（透传 `tools.web_search`）
 
 逻辑要点：
 
-- Web Search 默认关闭（前端开关控制）
+- 支持联网搜索的模型默认自动可用
 - 后端识别“实时问题”（天气/新闻/行情等）
-- 若未开启联网，直接返回提示：
-  - “请先开启 Web Search”
+- 若当前模型不支持联网，直接返回提示：
+  - “当前所选模型不支持联网搜索”
 - 防止模型凭记忆“编出今天行情”
 
 ### 6.2 Thinking 默认开启 + 三重止损
@@ -173,14 +173,11 @@
 - `PATCH /api/v1/conversations/{session_id}`
 - `DELETE /api/v1/conversations/{session_id}`（软删）
 - `GET /api/v1/conversations/{session_id}/messages`
-- `POST /api/v1/chat`
 - `POST /api/v1/chat/stream`
 
-`/chat` & `/chat/stream` 常用参数：
+`/chat/stream` 常用参数：
 
-- `runtime_mode`: `chat` / `agent`
 - `enable_thinking`: 是否开启 thinking（GLM/Ollama 默认 true）
-- `enable_web_search`: 是否允许联网搜索
 
 ---
 
@@ -201,7 +198,7 @@
 
 ### Q1：为什么“今天股市行情”有时会被拦截？
 
-因为系统判断这是时效问题，未开启 Web Search 会强制拦截，避免幻觉。
+因为系统判断这是时效问题，而当前模型不支持联网搜索，所以会强制拦截，避免幻觉。
 
 ### Q2：为什么会出现“thinking 自动终止”？
 

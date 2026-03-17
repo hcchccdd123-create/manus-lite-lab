@@ -1,6 +1,6 @@
 # DOCS_INDEX.md
 
-`manus-lite-lab` 项目文档总索引（Chat + Agent 产品、流程、技术、实现计划的单一入口）。
+`manus-lite-lab` 项目文档总索引（Chat 产品、流程、技术、实现计划的单一入口）。
 
 ## 文档导航
 1. [PRD.md](./PRD.md) - 产品目标、范围、用户故事、验收标准
@@ -20,9 +20,8 @@
 ## 快速查找场景
 - 改 UI 或交互细节：`FRONTEND_GUIDELINES.md` + `APP_FLOW.md`
 - 改接口或流式协议：`BACKEND_STRUCTURE.md` + `APP_FLOW.md`
-- 设计 Agent 推理循环与工具调用：`PRD.md` + `BACKEND_STRUCTURE.md` + `IMPLEMENTATION_PLAN.md`
 - 排查 thinking 卡住/重复与终止原因：`BACKEND_STRUCTURE.md` + `IMPLEMENTATION_PLAN.md` + `FRONTEND_GUIDELINES.md`
-- 排查联网搜索开关与意图拦截：`APP_FLOW.md` + `BACKEND_STRUCTURE.md`
+- 排查自动联网搜索策略：`APP_FLOW.md` + `BACKEND_STRUCTURE.md`
 - 新功能排期：`PRD.md` + `IMPLEMENTATION_PLAN.md`
 - 环境问题排查：`TECH_STACK.md`
 

@@ -3,11 +3,9 @@ import { getBaseURL } from './client'
 export interface StreamPayload {
   session_id: string
   message: string
-  runtime_mode?: 'chat' | 'agent'
   provider?: 'ollama' | 'glm' | 'codex'
   model?: string
   enable_thinking?: boolean
-  enable_web_search?: boolean
 }
 
 export async function openChatStream(payload: StreamPayload, signal?: AbortSignal) {

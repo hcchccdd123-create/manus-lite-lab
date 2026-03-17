@@ -51,19 +51,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
 - Default GLM base URL: `https://open.bigmodel.cn/api/paas/v4`
 - Loop guard for thinking stream is enabled by default (`ENABLE_THINKING_LOOP_GUARD=true`)
 - Stream endpoint: `POST /api/v1/chat/stream`
+- Current runtime shape: chat-only
+- Web search is automatically available for supported models (currently GLM)
 - API docs: `http://localhost:8000/docs`
 - If you deploy frontend later, place build output in Nginx and reverse proxy `/api` to this service
-
-## Next milestone (Agent Runtime)
-
-- Product direction upgrades to local-first `Chat + Agent`.
-- Agent loop target: `thinking -> tool_call -> tool_result -> final_answer`.
-- Planned runtime safeguards:
-  - `AGENT_ENABLED`
-  - `AGENT_MAX_STEPS`
-  - `AGENT_STEP_TIMEOUT_MS`
-  - `TOOL_DEFAULT_TIMEOUT_MS`
-- Suggested implementation order:
-  1) add `agent` service layer and step models
-  2) add tool registry and schema validation
-  3) expose streaming events for step visualization

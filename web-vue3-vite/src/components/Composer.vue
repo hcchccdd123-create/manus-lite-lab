@@ -5,15 +5,11 @@ const modelValue = defineModel<string>({ required: true })
 const props = defineProps<{
   disabled?: boolean
   deepThinkingEnabled?: boolean
-  runtimeMode?: 'chat' | 'agent'
-  webSearchEnabled?: boolean
 }>()
 
 const emits = defineEmits<{
   submit: []
   toggleDeepThinking: [enabled: boolean]
-  toggleRuntimeMode: [mode: 'chat' | 'agent']
-  toggleWebSearch: [enabled: boolean]
 }>()
 
 const textarea = ref<HTMLTextAreaElement | null>(null)
@@ -28,14 +24,6 @@ function onKeydown(event: KeyboardEvent) {
 function onToggleDeepThinking() {
   emits('toggleDeepThinking', !props.deepThinkingEnabled)
 }
-
-function onToggleRuntimeMode() {
-  emits('toggleRuntimeMode', props.runtimeMode === 'agent' ? 'chat' : 'agent')
-}
-
-function onToggleWebSearch() {
-  emits('toggleWebSearch', !props.webSearchEnabled)
-}
 </script>
 
 <template>
@@ -49,26 +37,6 @@ function onToggleWebSearch() {
         :disabled="props.disabled"
         @keydown="onKeydown"
       />
-      <button
-        type="button"
-        class="runtime-mode-toggle"
-        :class="{ active: props.runtimeMode === 'agent' }"
-        :title="props.runtimeMode === 'agent' ? 'Runtime: Agent' : 'Runtime: Chat'"
-        :disabled="props.disabled"
-        @click="onToggleRuntimeMode"
-      >
-        {{ props.runtimeMode === 'agent' ? 'Agent' : 'Chat' }}
-      </button>
-      <button
-        type="button"
-        class="web-search-toggle"
-        :class="{ active: props.webSearchEnabled }"
-        :title="props.webSearchEnabled ? 'Web Search: On' : 'Web Search: Off'"
-        :disabled="props.disabled"
-        @click="onToggleWebSearch"
-      >
-        Web
-      </button>
       <button
         type="button"
         class="deep-thinking-toggle"

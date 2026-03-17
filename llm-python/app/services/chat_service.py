@@ -20,32 +20,6 @@ from app.utils.ids import new_request_id
 from app.utils.time import utcnow
 
 
-TIME_QUERY_HINTS = (
-    'today',
-    'tomorrow',
-    'yesterday',
-    'date',
-    'time',
-    'now',
-    'current time',
-    'what day',
-    '今天',
-    '明天',
-    '昨天',
-    '日期',
-    '时间',
-    '现在',
-    '几月',
-    '几号',
-    '星期',
-)
-
-
-def _is_time_related_question(text: str) -> bool:
-    lowered = text.lower()
-    return any(token in lowered for token in TIME_QUERY_HINTS)
-
-
 NETWORK_QUERY_HINTS = (
     '天气',
     '气温',
@@ -128,10 +102,10 @@ def _is_network_query(text: str) -> bool:
     return False
 
 
-def _web_search_required_message() -> str:
+def _unsupported_web_search_message() -> str:
     return (
         '这个问题需要联网搜索才能保证准确性。'
-        '当前未开启 Web Search，请先开启后再提问，避免基于过期信息或推测回答。'
+        '当前所选模型不支持联网搜索，请切换到支持联网搜索的模型后再试，避免基于过期信息或推测回答。'
     )
 
 
@@ -255,123 +229,6 @@ class ChatService:
         self.context_builder = ContextBuilder(max_context_chars=self.policy.max_context_chars)
         self.summarizer = Summarizer(self.provider_router)
 
-    async def send_message(
-        self,
-        *,
-        session_id: str,
-        message: str,
-        provider: str | None = None,
-        model: str | None = None,
-        runtime_mode: str = 'chat',
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        enable_thinking: bool | None = None,
-        enable_web_search: bool | None = None,
-    ):
-        request_id = new_request_id()
-        conv = await self.conversation_repo.get(session_id)
-        if conv is None:
-            raise ValueError(f'conversation not found: {session_id}')
-
-        provider_name = provider or conv.provider
-        model_name = model or conv.model
-        resolved_tools = self._resolve_tools(
-            provider_name=provider_name,
-            runtime_mode=runtime_mode,
-            enable_web_search=enable_web_search,
-        )
-        web_search_required = provider_name == 'glm' and _is_network_query(message) and not resolved_tools
-
-        await self.message_repo.create(
-            conversation_id=session_id,
-            role='user',
-            content=message,
-            provider=None,
-            model=None,
-            request_id=request_id,
-        )
-
-        if web_search_required:
-            warning_message = await self._append_follow_up_questions(
-                answer=_web_search_required_message(),
-                user_message=message,
-                provider_name=provider_name,
-                model_name=model_name,
-                conversation_id=session_id,
-                request_id=request_id,
-            )
-            assistant_msg = await self.message_repo.create(
-                conversation_id=session_id,
-                role='assistant',
-                content=warning_message,
-                provider=provider_name,
-                model=model_name,
-                request_id=request_id,
-            )
-            conv.last_active_at = utcnow()
-            conv.updated_at = utcnow()
-            await self.db.commit()
-            return {
-                'request_id': request_id,
-                'assistant_message': assistant_msg,
-                'summary_updated': False,
-            }
-
-        context_messages = await self._build_context_messages(
-            conv,
-            current_user_message=message,
-            runtime_mode=runtime_mode,
-            web_search_enabled=bool(resolved_tools),
-        )
-        req = ChatRequest(
-            provider=provider_name,
-            model=model_name,
-            messages=context_messages,
-            temperature=temperature,
-            top_p=self.settings.generation_top_p,
-            repeat_penalty=self.settings.generation_repeat_penalty if provider_name == 'ollama' else None,
-            max_tokens=max_tokens,
-            stream=False,
-            enable_thinking=self._resolve_enable_thinking(provider_name, enable_thinking),
-            tools=resolved_tools,
-        )
-        resp = await self.provider_router.chat(req, conversation_id=session_id, request_id=request_id)
-        final_text = await self._append_follow_up_questions(
-            answer=resp.text,
-            user_message=message,
-            provider_name=provider_name,
-            model_name=model_name,
-            conversation_id=session_id,
-            request_id=request_id,
-        )
-
-        assistant_msg = await self.message_repo.create(
-            conversation_id=session_id,
-            role='assistant',
-            content=final_text,
-            provider=provider_name,
-            model=model_name,
-            request_id=request_id,
-            usage=resp.usage,
-        )
-
-        conv.last_active_at = utcnow()
-        conv.updated_at = utcnow()
-        await self.db.commit()
-
-        snapshot = await self._maybe_update_summary(
-            session_id=session_id,
-            provider=provider_name,
-            model=model_name,
-            request_id=request_id,
-        )
-
-        return {
-            'request_id': request_id,
-            'assistant_message': assistant_msg,
-            'summary_updated': bool(snapshot),
-        }
-
     async def stream_message(
         self,
         *,
@@ -379,11 +236,9 @@ class ChatService:
         message: str,
         provider: str | None = None,
         model: str | None = None,
-        runtime_mode: str = 'chat',
         temperature: float = 0.7,
         max_tokens: int | None = None,
         enable_thinking: bool | None = None,
-        enable_web_search: bool | None = None,
     ) -> AsyncGenerator[dict, None]:
         request_id = new_request_id()
         conv = await self.conversation_repo.get(session_id)
@@ -392,12 +247,9 @@ class ChatService:
 
         provider_name = provider or conv.provider
         model_name = model or conv.model
-        resolved_tools = self._resolve_tools(
-            provider_name=provider_name,
-            runtime_mode=runtime_mode,
-            enable_web_search=enable_web_search,
-        )
-        web_search_required = provider_name == 'glm' and _is_network_query(message) and not resolved_tools
+        supports_web_search = self._supports_web_search(provider_name)
+        resolved_tools = self._resolve_tools(provider_name=provider_name)
+        web_search_required = _is_network_query(message) and not supports_web_search
 
         await self.message_repo.create(
             conversation_id=session_id,
@@ -410,7 +262,7 @@ class ChatService:
 
         if web_search_required:
             warning_message = await self._append_follow_up_questions(
-                answer=_web_search_required_message(),
+                answer=_unsupported_web_search_message(),
                 user_message=message,
                 provider_name=provider_name,
                 model_name=model_name,
@@ -444,8 +296,7 @@ class ChatService:
         context_messages = await self._build_context_messages(
             conv,
             current_user_message=message,
-            runtime_mode=runtime_mode,
-            web_search_enabled=bool(resolved_tools),
+            web_search_enabled=supports_web_search,
         )
         req = ChatRequest(
             provider=provider_name,
@@ -546,7 +397,6 @@ class ChatService:
         self,
         conv,
         current_user_message: str,
-        runtime_mode: str,
         web_search_enabled: bool,
     ) -> list[ChatMessage]:
         latest_snapshot = await self.memory_repo.latest(conv.id)
@@ -564,15 +414,6 @@ class ChatService:
             f"Current date ({time_context['timezone']}): {time_context['iso_date']} ({time_context['weekday']})",
             'When user asks about today/now/date/time, never guess and always answer from this runtime context.',
         ]
-        if runtime_mode == 'agent':
-            runtime_prompt_lines.append(
-                "Tool available: get_current_datetime(timezone). For date/time questions, call this tool before final answer."
-            )
-            if _is_time_related_question(current_user_message):
-                runtime_prompt_lines.append(
-                    f"Pre-fetched tool result get_current_datetime('{self.settings.app_timezone}'): "
-                    f"{json.dumps(time_context, ensure_ascii=False)}"
-                )
         if web_search_enabled:
             runtime_prompt_lines.append(
                 'Web search is enabled. For facts that depend on current events (weather/news/prices), prefer web search instead of memory.'
@@ -590,24 +431,14 @@ class ChatService:
             recent_messages=recent_messages,
         )
 
-    def _resolve_tools(
-        self,
-        *,
-        provider_name: str,
-        runtime_mode: str,
-        enable_web_search: bool | None,
-    ) -> list[dict] | None:
-        if provider_name != 'glm':
-            return None
+    @staticmethod
+    def _supports_web_search(provider_name: str) -> bool:
+        return provider_name == 'glm'
 
-        if enable_web_search is True:
-            return _glm_web_search_tools()
-        if enable_web_search is False:
+    def _resolve_tools(self, *, provider_name: str) -> list[dict] | None:
+        if not self._supports_web_search(provider_name):
             return None
-
-        if runtime_mode == 'agent':
-            return _glm_web_search_tools()
-        return None
+        return _glm_web_search_tools()
 
     @staticmethod
     def _resolve_enable_thinking(provider_name: str, enable_thinking: bool | None) -> bool:
