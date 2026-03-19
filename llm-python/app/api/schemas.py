@@ -71,6 +71,7 @@ class ChatRequestIn(BaseModel):
     message: str = Field(min_length=1)
     provider: Literal['ollama', 'glm', 'codex'] | None = None
     model: str | None = None
+    # 单次请求的 RAG 覆盖开关：True=强制开启，False=强制关闭，None=不覆盖，交给全局配置和意图识别决定。
     use_rag: bool | None = None
     # 采样温度，越高越发散，越低越稳定。
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)

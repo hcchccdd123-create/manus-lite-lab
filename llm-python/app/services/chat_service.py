@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from time import monotonic
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -219,6 +220,14 @@ def _glm_web_search_tools() -> list[dict]:
     ]
 
 
+@dataclass(frozen=True)
+class RAGDecision:
+    enabled: bool
+    override: bool | None
+    intent_matched: bool
+    should_retrieve: bool
+
+
 class ChatService:
     def __init__(self, settings: Settings, db: AsyncSession):
         self.settings = settings
@@ -235,14 +244,14 @@ class ChatService:
         self.context_builder = ContextBuilder(max_context_chars=self.policy.max_context_chars)
         self.summarizer = Summarizer(self.provider_router)
         self.rag_intent_detector = RAGIntentDetector()
-        self.embedding_client = GLMEmbeddingClient(
+        embedding_client = GLMEmbeddingClient(
             base_url=settings.glm_base_url,
             api_key=settings.glm_api_key,
             model=settings.glm_embedding_model,
             timeout_seconds=settings.provider_timeout_seconds,
         )
         self.rag_retriever = RAGRetriever(
-            embedding_client=self.embedding_client,
+            embedding_client=embedding_client,
             config=RetrieverConfig(
                 host=settings.chroma_host,
                 port=settings.chroma_port,
@@ -316,11 +325,22 @@ class ChatService:
                 },
             }
             return
-
+        rag_decision = self._resolve_rag_decision(message=message, force=use_rag)
+        logger.info(
+            'rag decision: enabled=%s override=%s intent=%s should_retrieve=%s',
+            rag_decision.enabled,
+            rag_decision.override,
+            rag_decision.intent_matched,
+            rag_decision.should_retrieve,
+        )
         rag_context = await self._maybe_retrieve_rag_context(
             message=message,
-            force=use_rag,
-            web_search_required=web_search_required,
+            decision=rag_decision,
+        )
+        logger.info(
+            'rag retrieval result: enabled=%s found=%s',
+            rag_decision.should_retrieve,
+            rag_context.found if rag_context else None,
         )
 
         context_messages = await self._build_context_messages(
@@ -338,7 +358,11 @@ class ChatService:
             repeat_penalty=self.settings.generation_repeat_penalty if provider_name == 'ollama' else None,
             max_tokens=max_tokens,
             stream=True,
-            enable_thinking=self._resolve_enable_thinking(provider_name, enable_thinking),
+            enable_thinking=self._resolve_enable_thinking(
+                provider_name,
+                enable_thinking,
+                prefer_concise_answer=rag_decision.should_retrieve,
+            ),
             tools=resolved_tools,
         )
 
@@ -479,8 +503,15 @@ class ChatService:
         return _glm_web_search_tools()
 
     @staticmethod
-    def _resolve_enable_thinking(provider_name: str, enable_thinking: bool | None) -> bool:
+    def _resolve_enable_thinking(
+        provider_name: str,
+        enable_thinking: bool | None,
+        *,
+        prefer_concise_answer: bool = False,
+    ) -> bool:
         if provider_name not in {'ollama', 'glm'}:
+            return False
+        if prefer_concise_answer and enable_thinking is None:
             return False
         if enable_thinking is None:
             return True
@@ -490,15 +521,12 @@ class ChatService:
         self,
         *,
         message: str,
-        force: bool | None,
-        web_search_required: bool,
+        decision: RAGDecision,
     ) -> RetrievedContext | None:
-        if not self.settings.rag_enabled:
-            return None
-        if web_search_required:
+        if not decision.enabled:
             return None
 
-        if not self._should_attempt_rag(force):
+        if not decision.should_retrieve:
             return None
 
         try:
@@ -517,11 +545,29 @@ class ChatService:
             return source_block
         return f'{base}\n\n{source_block}'
 
-    @staticmethod
-    def _should_attempt_rag(force: bool | None) -> bool:
+    def _resolve_rag_decision(self, *, message: str, force: bool | None) -> RAGDecision:
+        if force is True:
+            return RAGDecision(
+                enabled=self.settings.rag_enabled,
+                override=force,
+                intent_matched=True,
+                should_retrieve=self.settings.rag_enabled,
+            )
         if force is False:
-            return False
-        return True
+            return RAGDecision(
+                enabled=self.settings.rag_enabled,
+                override=force,
+                intent_matched=False,
+                should_retrieve=False,
+            )
+
+        intent_matched = self.rag_intent_detector.should_retrieve(message, force=None)
+        return RAGDecision(
+            enabled=self.settings.rag_enabled,
+            override=force,
+            intent_matched=intent_matched,
+            should_retrieve=self.settings.rag_enabled and intent_matched,
+        )
 
     @staticmethod
     def _sanitize_follow_up_question(text: str) -> str:

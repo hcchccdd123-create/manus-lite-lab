@@ -74,7 +74,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
 - Recommended Chroma endpoint: `http://127.0.0.1:8001`
 - Example collection name: `rag_demo`
 - Example docs directory for ingestion: `./docs`
-- When `RAG_ENABLED=true`, backend will try knowledge-base retrieval by default; frontend does not need to pass a dedicated RAG flag.
+- Local dev now defaults to `RAG_ENABLED=true` in `.env.example`, so document-style questions will try knowledge-base retrieval out of the box after docs are ingested.
+- `use_rag` is a per-request override only:
+  - `true`: force RAG on for this request
+  - `false`: force RAG off for this request
+  - omitted / `null`: let backend decide based on global `RAG_ENABLED` + intent detection
 - Default provider: GLM (`glm-4.7`)
 - Configure `GLM_API_KEY` only in local `.env` or deployment secret manager; never hardcode or commit real keys.
 - Default GLM base URL: `https://open.bigmodel.cn/api/paas/v4`
