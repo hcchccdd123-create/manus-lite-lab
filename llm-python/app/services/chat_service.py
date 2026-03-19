@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from collections.abc import AsyncGenerator
 from time import monotonic
@@ -13,11 +14,16 @@ from app.memory.context_builder import ContextBuilder
 from app.memory.policy import MemoryPolicy
 from app.memory.summarizer import Summarizer
 from app.providers.base import ChatMessage, ChatRequest
+from app.rag import GLMEmbeddingClient, RAGIntentDetector, RAGRetriever
+from app.rag.retriever import RetrieverConfig
+from app.rag.types import RAG_MISS_NOTICE, RetrievedContext
 from app.services.provider_router import ProviderRouter
 from app.services.thinking_loop_guard import ThinkingLoopGuard
 from app.tools import get_current_datetime
 from app.utils.ids import new_request_id
 from app.utils.time import utcnow
+
+logger = logging.getLogger(__name__)
 
 
 NETWORK_QUERY_HINTS = (
@@ -228,6 +234,23 @@ class ChatService:
         )
         self.context_builder = ContextBuilder(max_context_chars=self.policy.max_context_chars)
         self.summarizer = Summarizer(self.provider_router)
+        self.rag_intent_detector = RAGIntentDetector()
+        self.embedding_client = GLMEmbeddingClient(
+            base_url=settings.glm_base_url,
+            api_key=settings.glm_api_key,
+            model=settings.glm_embedding_model,
+            timeout_seconds=settings.provider_timeout_seconds,
+        )
+        self.rag_retriever = RAGRetriever(
+            embedding_client=self.embedding_client,
+            config=RetrieverConfig(
+                host=settings.chroma_host,
+                port=settings.chroma_port,
+                collection_name=settings.chroma_collection,
+                top_k=settings.rag_top_k,
+                similarity_threshold=settings.rag_similarity_threshold,
+            ),
+        )
 
     async def stream_message(
         self,
@@ -236,6 +259,7 @@ class ChatService:
         message: str,
         provider: str | None = None,
         model: str | None = None,
+        use_rag: bool | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
         enable_thinking: bool | None = None,
@@ -293,10 +317,13 @@ class ChatService:
             }
             return
 
+        rag_context = await self._maybe_retrieve_rag_context(message=message, force=use_rag)
+
         context_messages = await self._build_context_messages(
             conv,
             current_user_message=message,
             web_search_enabled=supports_web_search,
+            rag_context=rag_context.prompt_context if rag_context and rag_context.found else None,
         )
         req = ChatRequest(
             provider=provider_name,
@@ -314,6 +341,9 @@ class ChatService:
         yield {'event': 'message.start', 'data': {'request_id': request_id}}
         chunks: list[str] = []
         thinking_chunks: list[str] = []
+        if rag_context and not rag_context.found:
+            chunks.append(f'{RAG_MISS_NOTICE}\n\n')
+            yield {'event': 'message.delta', 'data': {'delta': f'{RAG_MISS_NOTICE}\n\n'}}
         thinking_guard = ThinkingLoopGuard(
             enabled=self.settings.enable_thinking_loop_guard and provider_name in {'ollama', 'glm'},
             max_chars=self.settings.thinking_loop_max_chars,
@@ -354,6 +384,7 @@ class ChatService:
             conversation_id=session_id,
             request_id=request_id,
         )
+        final_text = self._append_rag_source_summary(final_text, rag_context)
         await self.message_repo.create(
             conversation_id=session_id,
             role='assistant',
@@ -398,6 +429,7 @@ class ChatService:
         conv,
         current_user_message: str,
         web_search_enabled: bool,
+        rag_context: str | None = None,
     ) -> list[ChatMessage]:
         latest_snapshot = await self.memory_repo.latest(conv.id)
         summary_text = latest_snapshot.summary_text if latest_snapshot else None
@@ -423,6 +455,8 @@ class ChatService:
         if conv.system_prompt:
             system_prompt_sections.append(conv.system_prompt)
         system_prompt_sections.append('\n'.join(runtime_prompt_lines))
+        if rag_context:
+            system_prompt_sections.append(rag_context)
         merged_system_prompt = '\n\n'.join(system_prompt_sections)
 
         return self.context_builder.build(
@@ -447,6 +481,30 @@ class ChatService:
         if enable_thinking is None:
             return True
         return enable_thinking
+
+    async def _maybe_retrieve_rag_context(self, *, message: str, force: bool | None) -> RetrievedContext | None:
+        if not self.settings.rag_enabled:
+            return None
+
+        should_retrieve = self.rag_intent_detector.should_retrieve(message, force=force)
+        if not should_retrieve:
+            return None
+
+        try:
+            return await self.rag_retriever.retrieve(message)
+        except Exception as exc:
+            logger.warning('rag retrieval failed: %s', exc)
+            return RetrievedContext(found=False)
+
+    @staticmethod
+    def _append_rag_source_summary(answer: str, rag_context: RetrievedContext | None) -> str:
+        if not rag_context or not rag_context.found or not rag_context.source_summary:
+            return answer
+        base = answer.strip()
+        source_block = rag_context.source_summary.strip()
+        if not base:
+            return source_block
+        return f'{base}\n\n{source_block}'
 
     @staticmethod
     def _sanitize_follow_up_question(text: str) -> str:

@@ -27,6 +27,7 @@ async def chat_stream(
                 message=payload.message,
                 provider=payload.provider,
                 model=payload.model,
+                use_rag=payload.use_rag,
                 temperature=payload.temperature,
                 max_tokens=payload.max_tokens,
                 enable_thinking=payload.enable_thinking,

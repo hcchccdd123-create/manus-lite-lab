@@ -71,6 +71,7 @@ class ChatRequestIn(BaseModel):
     message: str = Field(min_length=1)
     provider: Literal['ollama', 'glm', 'codex'] | None = None
     model: str | None = None
+    use_rag: bool | None = None
     # 采样温度，越高越发散，越低越稳定。
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     # 限制输出 token 数量，避免响应过长。

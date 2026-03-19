@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     app_timezone: str = 'Asia/Shanghai'
 
     db_url: str = 'sqlite+aiosqlite:///./data/chat.db'
+    rag_enabled: bool = False
+    rag_docs_dir: str = './docs'
+    rag_top_k: int = Field(default=4, ge=1, le=20)
+    rag_chunk_size: int = Field(default=800, ge=100, le=4000)
+    rag_chunk_overlap: int = Field(default=120, ge=0, le=1000)
+    rag_similarity_threshold: float = Field(default=0.45, ge=0.0, le=2.0)
 
     default_provider: str = 'glm'
     default_model_ollama: str = 'qwen3.5:0.8b'
@@ -21,9 +27,13 @@ class Settings(BaseSettings):
     glm_api_key: str = ''
     glm_base_url: str = 'https://open.bigmodel.cn/api/paas/v4'
     glm_model: str = 'glm-4.7'
+    glm_embedding_model: str = 'embedding-3'
     codex_api_key: str = ''
     codex_base_url: str = ''
     codex_model: str = 'gpt-4.1-mini'
+    chroma_host: str = '127.0.0.1'
+    chroma_port: int = Field(default=8001, ge=1, le=65535)
+    chroma_collection: str = 'rag_demo'
 
     memory_window_size: int = 12
     summary_trigger_messages: int = 20

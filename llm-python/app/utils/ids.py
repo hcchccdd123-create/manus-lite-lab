@@ -26,3 +26,11 @@ def new_log_id() -> str:
 
 def new_snapshot_id() -> str:
     return _prefix('mem')
+
+
+def new_knowledge_base_id() -> str:
+    return _prefix('kb')
+
+
+def new_document_id() -> str:
+    return _prefix('doc')

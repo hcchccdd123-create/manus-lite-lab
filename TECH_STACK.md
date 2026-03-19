@@ -51,10 +51,15 @@
 ### 数据与网络
 - SQLAlchemy `2.0.48`
 - greenlet `3.3.2`
-- aiosqlite `0.22.1`
+- asyncpg `0.31.0`
+- chromadb `1.5.5`
 - httpx `0.28.1`
 - sse-starlette `3.3.2`
 - tenacity `9.1.4`
+
+### RAG 与文档
+- llama-index `0.14.18`
+- pypdf `6.9.1`
 
 ### 测试
 - pytest `9.0.2`
@@ -79,7 +84,8 @@
 - 时效问题防幻觉：不支持联网搜索的模型命中实时问题时，由后端直接返回标准提示
 
 ## 6. 存储与数据
-- 后端数据库：SQLite（`sqlite+aiosqlite:///./data/chat.db`）
+- 后端主数据库：PostgreSQL（本地开发当前使用 `postgresql+asyncpg`）
+- 向量检索：ChromaDB HTTP Server（本机独立进程）
 - 前端持久化：IndexedDB（`conversations` / `messages` / `think_states`）
 
 ## 7. 版本约束规则

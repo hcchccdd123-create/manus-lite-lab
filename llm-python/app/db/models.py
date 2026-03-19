@@ -81,3 +81,36 @@ class ProviderCallLog(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class KnowledgeBase(Base):
+    __tablename__ = 'knowledge_bases'
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    collection_name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    docs_dir: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default='ready')
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class KnowledgeDocument(Base):
+    __tablename__ = 'documents'
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    knowledge_base_id: Mapped[str] = mapped_column(ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=False)
+    source_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default='pending')
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('knowledge_base_id', 'source_path', name='uq_documents_kb_source_path'),
+        Index('idx_documents_knowledge_base_status', 'knowledge_base_id', 'status'),
+    )

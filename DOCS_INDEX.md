@@ -9,6 +9,7 @@
 4. [FRONTEND_GUIDELINES.md](./FRONTEND_GUIDELINES.md) - UI 视觉与交互规范
 5. [BACKEND_STRUCTURE.md](./BACKEND_STRUCTURE.md) - 数据模型、API 合约、SSE 协议
 6. [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) - 分阶段执行与回归验收
+7. [POSTGRESQL_GUIDE.md](./POSTGRESQL_GUIDE.md) - 本地 PostgreSQL 安装、启动、连接、建库与排错教程
 
 ## 推荐阅读顺序
 1. 先读 `PRD.md` 对齐“要做什么”和“做到什么算完成”
@@ -24,6 +25,7 @@
 - 排查自动联网搜索策略：`APP_FLOW.md` + `BACKEND_STRUCTURE.md`
 - 新功能排期：`PRD.md` + `IMPLEMENTATION_PLAN.md`
 - 环境问题排查：`TECH_STACK.md`
+- 数据库环境配置 / 排查：`POSTGRESQL_GUIDE.md` + `TECH_STACK.md`
 
 ## 文档维护规则
 - 任何影响产品行为、接口协议、依赖版本的代码变更，都要同步更新对应文档。

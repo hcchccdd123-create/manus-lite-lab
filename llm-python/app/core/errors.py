@@ -33,3 +33,11 @@ class ProviderTimeoutError(ProviderError):
 
 class ProviderUnavailableError(ProviderError):
     code = 'PROVIDER_UNAVAILABLE'
+
+
+class RAGError(AppError):
+    code = 'RAG_ERROR'
+
+
+class RAGUnavailableError(RAGError):
+    code = 'RAG_UNAVAILABLE'
