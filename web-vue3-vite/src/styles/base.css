@@ -445,9 +445,12 @@ button {
 }
 
 .think-dock-layer {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 62;
+  z-index: 1200;
+  padding: 16px;
+  display: grid;
+  place-items: center;
   pointer-events: none;
 }
 
@@ -456,8 +459,10 @@ button {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(400px, calc(100% - 32px));
-  height: min(400px, calc(100% - 32px));
+  width: min(400px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  height: min(400px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
   border: 1px solid #3a3324;
   border-radius: 14px;
   background: linear-gradient(180deg, #1e1a12 0%, #17130e 100%);
@@ -471,14 +476,22 @@ button {
 }
 
 .think-dock-header {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid #322c20;
+  background: linear-gradient(180deg, rgba(38, 31, 20, 0.98) 0%, rgba(31, 25, 17, 0.98) 100%);
+  backdrop-filter: blur(8px);
 }
 
 .think-dock-title {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -488,24 +501,29 @@ button {
 }
 
 .think-dock-close {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  border: 1px solid #5a4b2e;
-  background: #241d12;
-  color: #f2d9a3;
+  border: 1px solid #8f7032;
+  background: linear-gradient(180deg, #302515 0%, #241c10 100%);
+  color: #ffe4af;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   cursor: pointer;
+  box-shadow: 0 10px 22px -18px rgba(0, 0, 0, 0.85);
 }
 
 .think-dock-close:hover,
 .think-dock-close:focus-visible {
-  border-color: #8f7032;
-  background: #2e2414;
-  color: #ffe4af;
+  border-color: #d2a44d;
+  background: linear-gradient(180deg, #3b2d18 0%, #2d2212 100%);
+  color: #fff1c6;
+  transform: translateY(-1px);
 }
 
 .think-dock-close svg {
@@ -520,14 +538,31 @@ button {
 
 .think-dock-content-wrap {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
+  min-width: 0;
+  z-index: 1;
 }
 
 .think-dock-content {
+  width: 100%;
+  max-width: 100%;
   height: 100%;
   overflow: auto;
   color: #ead9b5;
   padding: 12px;
+}
+
+.think-dock-content.markdown {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.think-dock-content.markdown pre,
+.think-dock-content.markdown table,
+.think-dock-content.markdown img {
+  max-width: 100%;
 }
 
 .message-scroll-wrap {
@@ -1119,5 +1154,16 @@ button {
   .think-mobile-entry {
     display: inline-flex;
     margin-bottom: 8px;
+  }
+
+  .think-dock-layer {
+    padding: 12px;
+  }
+
+  .think-dock-panel {
+    width: min(400px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    height: min(400px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
   }
 }

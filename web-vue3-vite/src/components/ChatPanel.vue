@@ -219,7 +219,6 @@ onBeforeUnmount(() => {
         <ThinkPanel
           :think-state="activeThinkState"
           :expanded="isThinkExpanded"
-          :overlay-target="chatPanelRef"
           @open="openThinkPanel"
           @close="closeThinkPanel"
         />

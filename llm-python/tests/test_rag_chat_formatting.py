@@ -15,3 +15,9 @@ def test_append_rag_source_summary_appends_sources():
 
 def test_rag_miss_notice_constant_is_stable():
     assert RAG_MISS_NOTICE.startswith('未命中任何文档')
+
+
+def test_should_attempt_rag_defaults_to_true():
+    assert ChatService._should_attempt_rag(None) is True
+    assert ChatService._should_attempt_rag(True) is True
+    assert ChatService._should_attempt_rag(False) is False

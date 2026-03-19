@@ -317,7 +317,11 @@ class ChatService:
             }
             return
 
-        rag_context = await self._maybe_retrieve_rag_context(message=message, force=use_rag)
+        rag_context = await self._maybe_retrieve_rag_context(
+            message=message,
+            force=use_rag,
+            web_search_required=web_search_required,
+        )
 
         context_messages = await self._build_context_messages(
             conv,
@@ -482,12 +486,19 @@ class ChatService:
             return True
         return enable_thinking
 
-    async def _maybe_retrieve_rag_context(self, *, message: str, force: bool | None) -> RetrievedContext | None:
+    async def _maybe_retrieve_rag_context(
+        self,
+        *,
+        message: str,
+        force: bool | None,
+        web_search_required: bool,
+    ) -> RetrievedContext | None:
         if not self.settings.rag_enabled:
             return None
+        if web_search_required:
+            return None
 
-        should_retrieve = self.rag_intent_detector.should_retrieve(message, force=force)
-        if not should_retrieve:
+        if not self._should_attempt_rag(force):
             return None
 
         try:
@@ -505,6 +516,12 @@ class ChatService:
         if not base:
             return source_block
         return f'{base}\n\n{source_block}'
+
+    @staticmethod
+    def _should_attempt_rag(force: bool | None) -> bool:
+        if force is False:
+            return False
+        return True
 
     @staticmethod
     def _sanitize_follow_up_question(text: str) -> str:
